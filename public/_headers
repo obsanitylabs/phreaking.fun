@@ -1,0 +1,16 @@
+/boxes/*
+  Content-Type: image/svg+xml
+  Cache-Control: public, max-age=31536000
+
+/*.svg
+  Content-Type: image/svg+xml
+  Cache-Control: public, max-age=31536000
+
+/*.gif
+  Cache-Control: public, max-age=31536000
+
+/*.png
+  Cache-Control: public, max-age=31536000
+
+/*.jpg
+  Cache-Control: public, max-age=31536000 

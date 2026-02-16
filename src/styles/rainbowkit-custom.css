@@ -1,0 +1,161 @@
+/* Customização do modal de conta/desconexão do RainbowKit */
+
+/* Modal de conta principal */
+[data-rk] div[role="dialog"] {
+  border: 2px solid #22e584 !important;
+  box-shadow: 0 0 40px rgba(34, 229, 132, 0.5) !important;
+}
+
+/* Botões de ação no modal de conta */
+[data-rk] button[data-testid*="rk-profile-button"] {
+  background: #071e13 !important;
+  border: 1px solid #35594b !important;
+  color: #cbcbcb !important;
+  font-family: "Geist Mono", monospace !important;
+  transition: all 0.2s ease !important;
+}
+
+[data-rk] button[data-testid*="rk-profile-button"]:hover {
+  background: #175a38 !important;
+  border-color: #22e584 !important;
+  color: #22e584 !important;
+  box-shadow: 0 0 10px rgba(34, 229, 132, 0.3) !important;
+}
+
+/* Botão de disconnect específico */
+[data-rk] button[data-testid="rk-profile-disconnect-button"] {
+  background: #9c001d !important;
+  border: 1px solid #9c001d !important;
+  color: #ffffff !important;
+}
+
+[data-rk] button[data-testid="rk-profile-disconnect-button"]:hover {
+  background: #cc0024 !important;
+  border-color: #cc0024 !important;
+  box-shadow: 0 0 10px rgba(204, 0, 36, 0.5) !important;
+}
+
+/* Texto do endereço da carteira */
+[data-rk] div[data-testid="rk-profile-address"] {
+  color: #22e584 !important;
+  font-family: "Geist Mono", monospace !important;
+  font-size: 14px !important;
+}
+
+/* Saldo da carteira */
+[data-rk] div[data-testid="rk-profile-balance"] {
+  color: #cbcbcb !important;
+  font-family: "Geist Mono", monospace !important;
+}
+
+/* Ícones */
+[data-rk] svg {
+  color: inherit !important;
+}
+
+/* Remover bordas arredondadas */
+[data-rk] button,
+[data-rk] div[role="dialog"] {
+  border-radius: 0 !important;
+}
+
+/* Avatar da carteira - Sem borda */
+[data-rk] img[data-testid="rk-profile-avatar"],
+[data-rk] div[data-testid="rk-profile-avatar"],
+[data-rk] div[data-testid="rk-profile-avatar"] > *,
+[data-rk] div[data-testid="rk-profile-avatar"] img,
+[data-rk] div[data-testid="rk-profile-avatar"] div,
+[data-rk] *[aria-label*="avatar"],
+[data-rk] *[data-testid*="avatar"] *,
+[data-rk] div[role="dialog"] img,
+[data-rk] div[role="dialog"] div img {
+  border-radius: 0 !important;
+  -webkit-border-radius: 0 !important;
+  -moz-border-radius: 0 !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border: none !important;
+  overflow: visible !important;
+  clip-path: none !important;
+  -webkit-clip-path: none !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+  shape-outside: none !important;
+}
+
+/* Força remoção de qualquer estilo inline de border-radius */
+[data-rk] * {
+  border-radius: 0 !important;
+}
+
+/* Especificamente para imagens no modal de perfil */
+[data-rk] div[role="dialog"] * {
+  border-radius: 0 !important;
+}
+
+/* Container do avatar */
+[data-rk] div[data-testid="rk-profile-avatar"] {
+  width: 64px !important;
+  height: 64px !important;
+  background-color: #071e13 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 0 !important;
+}
+
+/* Imagem dentro do avatar */
+[data-rk] div[data-testid="rk-profile-avatar"] img {
+  width: 60px !important;
+  height: 60px !important;
+  object-fit: contain !important;
+  border-radius: 0 !important;
+}
+
+/* Separadores */
+[data-rk] hr {
+  border-color: #35594b !important;
+}
+
+/* Links "View on Explorer" etc */
+[data-rk] a {
+  color: #22e584 !important;
+  font-family: "Geist Mono", monospace !important;
+}
+
+[data-rk] a:hover {
+  color: #38ef7d !important;
+  text-shadow: 0 0 5px rgba(34, 229, 132, 0.5) !important;
+}
+
+/* Scrollbar customizada para modais RainbowKit */
+[data-rk] *::-webkit-scrollbar {
+  width: 4px !important;
+  height: 4px !important;
+}
+
+[data-rk] *::-webkit-scrollbar-track {
+  background: transparent !important;
+  border-radius: 4px !important;
+}
+
+[data-rk] *::-webkit-scrollbar-thumb {
+  background: #22e584 !important;
+  border-radius: 4px !important;
+}
+
+[data-rk] *::-webkit-scrollbar-thumb:hover {
+  background: #38ef7d !important;
+}
+
+[data-rk] *::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+/* Scrollbar para Firefox */
+[data-rk] * {
+  scrollbar-width: thin !important;
+  scrollbar-color: #22e584 transparent !important;
+}
