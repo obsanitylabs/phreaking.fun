@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Providers } from "./providers";
-import { ConsoleSuppressionInitializer } from "@/components/ConsoleSuppressionInitializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Phreaking Fun",
-  description: "Phreaking Fun System",
+  title: "Phreaking Fun — Paused Prototype",
+  description:
+    "Paused prototype. Sepolia testnet only. Not production. Do not send mainnet funds.",
 };
 
 export default function RootLayout({
@@ -26,17 +25,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/icon?family=Material+Icons"
-          rel="stylesheet"
-        />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ConsoleSuppressionInitializer />
-        <Providers>{children}</Providers>
+        {children}
       </body>
     </html>
   );
