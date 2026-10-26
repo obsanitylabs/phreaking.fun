@@ -1,8 +1,14 @@
-# 📦 DFK Mystery Box - Technical Documentation
+# Phreaking Fun — Paused Prototype (Sepolia)
 
-## 🎯 Overview
+> **Status: Paused / archived prototype. Sepolia testnet only. Not production. Do not send mainnet funds.**
+>
+> This repository is kept for reference only. The project is not audited, not maintained, and not a live product. It was a 90s-themed experiment for interacting with test contracts on the Ethereum Sepolia testnet. There is no mainnet deployment, and no support or new feature work is planned. Do not connect a mainnet wallet or send real funds.
 
-**DFK Mystery Box** is a decentralized application built with Next.js that allows users to interact with different types of "mystery boxes" on the Ethereum blockchain (Sepolia Testnet). Each box offers unique functionalities, from portfolio swaps to donations to charitable organizations.
+## Overview
+
+**Phreaking Fun** is a 90s-themed prototype dapp built with Next.js for interacting with box-style test contracts on the Ethereum Sepolia testnet. The boxes explored portfolio swaps, curated swaps, and donations to charitable organizations. The project is paused and archived; no new features, support, or deployments are planned.
+
+> **Naming note:** Earlier drafts used a different working title that could imply an association with a third party. That title is retired. The public name is "Phreaking Fun," matching the repo and domain `phreaking.fun`.
 
 ## 🚀 Technologies Used
 
@@ -154,7 +160,7 @@ The Silver Box offers value-for-value swaps using specially curated token lists,
 
 #### **Smart Contract**
 
-- **Address**: `0x21dC11d367821F783378c6015E50dE40494C43C2`
+- **Address**: `0x5C973451Bf8De44c84171DAc3447e4b1e16144Fc`
 - **Main Function**: `purchaseBox(address receiver, address[] tokens, uint256[] amounts)`
 - **Box ID**: 1
 - **Uniswap Router**: Integration for automatic swaps
@@ -168,7 +174,7 @@ const addresses = {
   // Box Contracts
   mysteryBoxAddress: "0x30bbe3c4942a74B3EFFdFe1b6157A46a7C0EAdf5",
   whiteBoxAddress: "0x0d25a6C86EAbbcd2FC6F766aeFE79929903095D2",
-  silverBoxAddress: "0x21dC11d367821F783378c6015E50dE40494C43C2",
+  silverBoxAddress: "0x5C973451Bf8De44c84171DAc3447e4b1e16144Fc",
   blueBoxAddress: "0x5555A156c36DE4734175C5613304B04eD3ffe6Cb",
   
   // Tokens
@@ -237,3 +243,13 @@ npm run format:check # Format verification
 - **Plugin**: @netlify/plugin-nextjs
 - **Build Command**: `npm run build`
 - **Publish Directory**: `.next`
+
+**Deployment status: paused.** Do not redeploy this repository as a live product. If the Netlify site remains online, it must show a clear pause notice and must not accept mainnet funds. The intended disposition is a takedown or a static paused/prototype page.
+
+## Security
+
+This prototype is not audited. Do not use it with real funds. The Sepolia test contracts and this code are provided as-is, with no warranty. The app was built as an experiment; no production security review was completed.
+
+## License
+
+No license is granted for this repository. It is public for reference only. Do not copy, modify, deploy, or redistribute the code without written permission from Obsanity Labs.
