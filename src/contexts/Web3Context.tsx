@@ -88,8 +88,11 @@ function Web3ContextProviderClient({ children }: Web3ContextProviderProps) {
   const chainId = useChainId();
   const { switchChain: switchChainWagmi } = useSwitchChain();
 
-  const supportedChainIds = [1, 11155111];
-  const isWrongNetwork = chainId ? !supportedChainIds.includes(chainId) : false;
+  // Sepolia testnet ONLY — mainnet is never supported in this app.
+  const supportedChainIds = [11155111] as const;
+  const isWrongNetwork = chainId
+    ? !supportedChainIds.includes(chainId as (typeof supportedChainIds)[number])
+    : false;
 
   const value: Web3ContextType = {
     address,
@@ -102,6 +105,11 @@ function Web3ContextProviderClient({ children }: Web3ContextProviderProps) {
     chainId,
     isWrongNetwork,
     switchChain: (newChainId: number) => {
+      if (newChainId !== 11155111) {
+        throw new Error(
+          "This app is Sepolia testnet only. Mainnet is disabled.",
+        );
+      }
       switchChainWagmi({ chainId: newChainId });
     },
 

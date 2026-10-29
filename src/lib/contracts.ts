@@ -1,6 +1,6 @@
 export const MYSTERY_BOX_CONTRACT =
-  "0x75e9dF3b53aAd26a4eb2fc6e19C43000d7B08DDd";
-export const BLUE_BOX_CONTRACT = "0x05d7927E949D053CA56A9Ce0b8F5AC6154c9ED24";
+  "0x30bbe3c4942a74B3EFFdFe1b6157A46a7C0EAdf5";
+export const BLUE_BOX_CONTRACT = "0x5555A156c36DE4734175C5613304B04eD3ffe6Cb";
 export const TOKEN_ADDRESS = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 export const TRANSACTION_FEE = "0.001";
 export const TOKEN_AMOUNT = "1000000";
@@ -19,18 +19,17 @@ export const getBoxTypeFromTitle = (title: string): BoxType => {
   return "blue";
 };
 
+// Sepolia testnet ONLY. All deployed contract addresses are Sepolia-only;
+// mainnet is intentionally absent and any mainnet (chainId 1) access is rejected.
 const CONTRACT_ADDRESSES = {
   11155111: {
-    mysteryBox: "0x30bbe3F5F8D4f0f5A8F0d8F0F5A8F0d8F0F5A8F0",
-    blueBox: "0x30bbe3F5F8D4f0f5A8F0d8F0F5A8F0d8F0F5A8F0",
+    mysteryBox: "0x30bbe3c4942a74B3EFFdFe1b6157A46a7C0EAdf5",
+    blueBox: "0x5555A156c36DE4734175C5613304B04eD3ffe6Cb",
     usdcToken: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
   },
-  1: {
-    mysteryBox: "0x0000000000000000000000000000000000000000",
-    blueBox: "0x0000000000000000000000000000000000000000",
-    usdcToken: "0xA0b86a33E6441E4d4fB0b5F5A8F0d8F0F5A8F0d8",
-  },
 } as const;
+
+export const SUPPORTED_CHAIN_IDS = [11155111];
 
 export const getContractAddress = (
   chainId: number,
@@ -39,7 +38,9 @@ export const getContractAddress = (
   const addresses =
     CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES];
   if (!addresses) {
-    throw new Error(`Unsupported chain ID: ${chainId}`);
+    throw new Error(
+      `Unsupported chain ID: ${chainId}. This app is Sepolia testnet only.`,
+    );
   }
   return addresses[contract];
 };

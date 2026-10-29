@@ -233,9 +233,9 @@ export function MysteryBoxProvider({
         return;
       }
 
-      if (chainId !== 1 && chainId !== 11155111) {
+      if (chainId !== 11155111) {
         updateState({
-          error: "Rede não suportada. Use Ethereum Mainnet ou Sepolia Testnet",
+          error: "Rede não suportada. Este app funciona apenas na Sepolia Testnet. Mainnet está desativado.",
           step: "error",
         });
         return;
