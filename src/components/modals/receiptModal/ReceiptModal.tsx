@@ -114,15 +114,10 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const getExplorerUrl = () => {
     if (!state.transactionHash) return "#";
 
+    // Sepolia testnet only — mainnet and other chains are never linked.
     switch (chainId) {
-      case 1:
-        return `https://etherscan.io/tx/${state.transactionHash}`;
       case 11155111:
         return `https://sepolia.etherscan.io/tx/${state.transactionHash}`;
-      case 137:
-        return `https://polygonscan.com/tx/${state.transactionHash}`;
-      case 56:
-        return `https://bscscan.com/tx/${state.transactionHash}`;
       default:
         return `https://sepolia.etherscan.io/tx/${state.transactionHash}`;
     }
@@ -132,16 +127,10 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
   const getExplorerName = () => {
     switch (chainId) {
-      case 1:
-        return "Etherscan";
       case 11155111:
         return "Sepolia Explorer";
-      case 137:
-        return "PolygonScan";
-      case 56:
-        return "BSCScan";
       default:
-        return "Block Explorer";
+        return "Sepolia Explorer";
     }
   };
 

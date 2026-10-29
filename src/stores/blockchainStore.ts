@@ -278,8 +278,8 @@ export const useBlockchainStore = create<BlockchainStore>()(
           throw new Error("Wallet não conectada");
         }
 
-        if (chainId !== 1 && chainId !== 11155111) {
-          throw new Error("Rede não suportada. Use Ethereum Mainnet ou Sepolia Testnet");
+        if (chainId !== 11155111) {
+          throw new Error("Rede não suportada. Este app funciona apenas na Sepolia Testnet (chain 11155111). Mainnet está desativado.");
         }
 
         try {

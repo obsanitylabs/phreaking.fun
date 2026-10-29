@@ -1,5 +1,5 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { mainnet, sepolia } from "wagmi/chains";
+import { sepolia } from "wagmi/chains";
 
 if (typeof window === "undefined") {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,6 +22,6 @@ export const config = getDefaultConfig({
   appName: "Phreaking Fun",
   projectId:  
     process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "YOUR_PROJECT_ID",
-  chains: [mainnet, sepolia],
+  chains: [sepolia],
   ssr: true,
 });

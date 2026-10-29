@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Phreaking Fun — Paused Prototype",
+  title: "Phreaking Fun — Sepolia Demo",
   description:
-    "Paused prototype. Sepolia testnet only. Not production. Do not send mainnet funds.",
+    "Sepolia testnet demo only. Not production. Mainnet is disabled — do not send mainnet funds.",
 };
 
 export default function RootLayout({

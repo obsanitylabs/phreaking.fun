@@ -19,7 +19,7 @@ const FAQ_ITEMS: FAQItem[] = [
   {
     category: "Getting Started",
     question: "How do I connect my wallet?",
-    answer: "Click the 'Connect Wallet' button in the header. Make sure you have a compatible wallet like MetaMask installed. The platform supports Ethereum Mainnet and Sepolia Testnet."
+    answer: "Click the 'Connect Wallet' button in the header. Make sure you have a compatible wallet like MetaMask installed. The platform is Sepolia Testnet only — Ethereum Mainnet is not supported. Never send mainnet funds."
   },
   {
     category: "Getting Started",
@@ -44,7 +44,7 @@ const FAQ_ITEMS: FAQItem[] = [
   {
     category: "Technical",
     question: "Which networks are supported?",
-    answer: "The platform currently supports Ethereum Mainnet and Sepolia Testnet. Make sure your wallet is connected to one of these networks."
+    answer: "The platform runs on Sepolia Testnet only. Switch your wallet to Sepolia Testnet (chain 11155111). Mainnet is disabled and no mainnet funds are accepted."
   },
   {
     category: "Technical",
