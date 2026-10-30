@@ -72,7 +72,7 @@ export const BOXES: BoxDefinition[] = [
     accent: "#FF3B30",
     icon: "swap",
     oneLine:
-      "Deposit one whole token. Receive one whole token, same chain or cross-chain.",
+      "Deposit one whole token. Receive one whole token — same chain or cross-chain.",
     detail:
       "One whole token in, one whole token out. Choose Native to stay on your current chain, or Cross-chain to route through Axelar/Synapse to a wider pool. Example: 1 AVAX can return 1 BAX or 1 WBTC.",
     assetMode: "single",
@@ -219,7 +219,7 @@ export const BOXES: BoxDefinition[] = [
     toolkit: "refresh",
     accent: "#A855F7",
     icon: "image",
-    oneLine: "Dump unwanted NFTs for altcoins, or flip altcoins into NFTs.",
+    oneLine: "Dump unwanted NFTs for altcoins — or flip altcoins into NFTs.",
     detail:
       "The NFT <-> altcoin highway. Dump unwanted NFTs for altcoins of similar dollar value, or spend altcoins to receive NFTs. When possible, altcoin dumps sweep the floor of the Black Box Harold collection.",
     assetMode: "nft",
@@ -329,7 +329,7 @@ export const BOXES: BoxDefinition[] = [
     gradient: true,
     icon: "shuffle",
     oneLine:
-      "Approve once. A random box fires; you won't know which until it lands.",
+      "Approve once. A random box fires — you won't know which until it lands.",
     detail:
       "Approves a transaction that randomly triggers one of the other boxes. The deposit rules of the fired box apply. You will not know which box fired until the result screen.",
     assetMode: "multi",
@@ -339,6 +339,7 @@ export const BOXES: BoxDefinition[] = [
     chips: ["RANDOM"],
     warnings: [
       "A random box fires. Its rules and risks apply to your deposit.",
+      "If Black Box fires, the sweep covers your entire wallet — not just the assets you deposited.",
       "You cannot choose or cancel the fired box after signing.",
     ],
     requiresAcknowledgement: true,
@@ -502,7 +503,7 @@ export const BOXES: BoxDefinition[] = [
     toolkit: "vibe",
     accent: "#7DD3FC",
     icon: "gem",
-    oneLine: "Dollar-for-dollar into sub-$10M coins. 1000x or death.",
+    oneLine: "Dollar-for-dollar into sub-$10M coins, filled over 24 hours.",
     detail:
       "The highest-risk mirror. Dollar-for-dollar into coins under a $10M market cap, at least $10k daily volume over 90 days, younger than three years. Fills are TWAP'd over 24 hours with slippage capped at 1%; you may receive several small bags.",
     assetMode: "multi",
