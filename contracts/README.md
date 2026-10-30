@@ -34,9 +34,17 @@ Branch: `build-day-boxes`. No mainnet deployment, no keys — Sepolia/local test
 
 ## Trust model (documented per build decision 6)
 
-- Contracts hold deposits only during the atomic deposit→executor dispatch. Settlement, DEX routing,
-  cross-chain bridging, VRF randomness and the Black-box Secret/Monero path live in the trusted off-chain
-  `IBoxExecutor`; contracts never route user funds themselves outside that delegation.
+- Contracts hold deposits only during the atomic deposit→executor dispatch. Every deposit is forwarded to
+  the executor in the same transaction (OBS-185):
+  - Native deposits (`tokenIn == address(0)`) forward `msg.value == amount` to the payable
+    `IBoxExecutor.execute`; the executor must implement `receive()`.
+  - ERC20 deposits use a PULL model: the box grants `forceApprove(executor, amount)` immediately before the
+    call and resets the allowance to zero immediately after, so the executor pulls the exact deposit and no
+    standing approval (or stranded balance) exists between deposits. `msg.value` must be zero on this branch.
+  Settlement, DEX routing, cross-chain bridging, VRF randomness and the Black-box Secret/Monero path live in
+  the trusted off-chain `IBoxExecutor`; contracts never route user funds themselves outside that delegation.
+- There is deliberately no sweep/rescue path: no admin can move user principal. Deposits are expected to leave
+  the box within the atomic deposit transaction, not accumulate.
 - No privileged path moves user principal: admin roles manage caps/pools/executor only; fees (where any) go
   through explicit event-emitting collection to an immutable treasury sink.
 - Emergency pause is reachable by the on-call guardian in one transaction on every contract exposing it;
@@ -68,11 +76,13 @@ deploy at 0 (= unlimited) — the script logs a loud warning; set them before la
 ## Tests
 
 ```shell
-$ forge test    # 59 passed / 0 failed across 11 suites
+$ forge test    # 62 passed / 0 failed across 12 suites
 ```
 
 Covers: pause-in-one-tx, timelocked unpause, tx/total-VaR/wallet caps, role gating (OZ v5 custom errors), CEI
-deposit flow with mock executor, price freshness/staleness + truncation guard, registry pool membership and
+deposit flow with mock executor, OBS-185 fund-forwarding integration (settling executor pulls the exact ERC20
+deposit with no standing allowance, native value reaches the executor, and ETH attached to an ERC20 deposit
+reverts), price freshness/staleness + truncation guard, registry pool membership and
 deactivation, referral registration/reward caps/supply cap/redemption burn/pause controls, plus the fleet-wide
 emergency-stop drill (`FleetDrill.t.sol`): guardian sweeps a one-tx pause over all 17 boxes + referral registry,
 deposit blocked while paused, non-guardian cannot touch pause/unpause, timelocked recovery after 24h.
