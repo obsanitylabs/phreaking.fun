@@ -49,15 +49,33 @@ Deploy order: `ReferralToken` → `ReferralRegistry(token, admin)` → grant `MI
 registry address (admin). Set per-referrer reward cap via `setMaxRewardsPerReferrer` if desired (0 = unlimited;
 the immutable token supply cap always remains as the hard backstop).
 
+## Deployment script (Phase 2 — Sepolia)
+
+`script/Deploy.s.sol` deploys the full fleet in one atomic sequence with bounded-launch wiring: guardian pause
+roles, CFO-signed caps at deploy time, known Sepolia tokens registered (`USDC.e`/WETH/LINK), and a final step
+that transfers every `DEFAULT_ADMIN_ROLE` to the multisig and renounces the deployer EOA.
+
+```shell
+ADMIN=<deployer-EOA-address> MULTISIG=<2of3-multisig> GUARDIAN=<on-call-guardian> \
+VAR_CAP_USD=<usd1e8> TX_CAP_USD=<usd1e8> WALLET_CAP_USD=<usd1e8> REFERRAL_MAX_SUPPLY=<optional-wei> \
+forge script script/Deploy.s.sol --rpc-url <sepolia-rpc> --broadcast --private-key $DEPLOY_KEY
+```
+
+`ADMIN` must be the address of `$DEPLOY_KEY`: this Foundry version replays each `vm.startBroadcast()` call as a
+signed transaction from that key, so constructor admin roles and all setup calls execute as it. Caps left unset
+deploy at 0 (= unlimited) — the script logs a loud warning; set them before launch per the deployment package.
+
 ## Tests
 
 ```shell
-$ forge test    # 46 passed / 0 failed across 9 suites
+$ forge test    # 49 passed / 0 failed across 10 suites
 ```
 
 Covers: pause-in-one-tx, timelocked unpause, tx/total-VaR/wallet caps, role gating (OZ v5 custom errors), CEI
 deposit flow with mock executor, price freshness/staleness + truncation guard, registry pool membership and
-deactivation, referral registration/reward caps/supply cap/redemption burn/pause controls.
+deactivation, referral registration/reward caps/supply cap/redemption burn/pause controls, plus the fleet-wide
+emergency-stop drill (`FleetDrill.t.sol`): guardian sweeps a one-tx pause over all 17 boxes + referral registry,
+deposit blocked while paused, non-guardian cannot touch pause/unpause, timelocked recovery after 24h.
 
 ## Build tooling
 
