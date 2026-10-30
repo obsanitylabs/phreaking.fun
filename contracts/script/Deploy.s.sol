@@ -43,7 +43,7 @@ contract DeployPhreaking is Script {
     /// @notice Known Polygon Sepolia tokens from src/constants/currencies.ts — registered on-chain here so the
     ///         registry has correct decimals before pool configuration. Pool membership itself is an admin
     ///         decision post-deploy (per-box spec); this script deliberately does not assume it.
-    address constant SEPOLIA_USDC_E = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // 8 decimals
+    address constant SEPOLIA_USDC_E = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // 6 decimals (verified live)
     address constant SEPOLIA_WETH   = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9; // 18 decimals
     address constant SEPOLIA_LINK   = 0x779877A7B0D9E8603169DdbD7836e478b4624789; // 18 decimals
 
@@ -173,13 +173,26 @@ contract DeployPhreaking is Script {
             rf.setTotalValueAtRiskCap(varCap);      rf.setPerTransactionCap(txCap);          rf.setPerWalletCap(walCap);
             cg.setTotalValueAtRiskCap(varCap);      cg.setPerTransactionCap(txCap);          cg.setPerWalletCap(walCap);
         }
-
         // ---- token registry seed (known Sepolia tokens; decimals only, pools are admin config) ----
-        registry.registerToken(SEPOLIA_USDC_E, 8);
-        registry.registerToken(SEPOLIA_WETH, 18);
-        registry.registerToken(SEPOLIA_LINK, 18);
+        registry.registerToken(SEPOLIA_USDC_E, 6);
+        registry.registerToken(SEPOLIA_WETH,   18);
+        registry.registerToken(SEPOLIA_LINK,   18);
+
+        // Native Ether (zero-address convention; OBS-128 H-1 donation-path support). Optional USD seed at
+        // deploy time — the price keeper/PRICER_ROLE must refresh it within the 1h freshness heartbeat.
+        registry.registerToken(address(0), 18);
+        uint256 ethPriceSeed = _optionalEnvUint(vm, "ETH_PRICE_USD"); // whole-ETH USD at 1e8
+        if (ethPriceSeed != 0) {
+            pricer.setPrice(address(0), ethPriceSeed, 18);
+            console.log("native Ether seeded at USD:", ethPriceSeed);
+        } else {
+            console.log("NOTE: native Ether price not seeded - set via PRICER_ROLE before launch.");
+        }
+
 
         // ---- hand every DEFAULT_ADMIN_ROLE to the multisig; EOA renounces all ----------
+        // Price-keeper authority transfers BEFORE the admin handoff (granting needs admin rights).
+        pricer.grantRole(pricer.PRICER_ROLE(), multisig); // production = Chainlink wiring per box-specs §13.
         registry.grantRole(DEFAULT_ADMIN_ROLE, multisig);            registry.renounceRole(DEFAULT_ADMIN_ROLE, admin);
         pricer.grantRole(DEFAULT_ADMIN_ROLE, multisig);              pricer.renounceRole(DEFAULT_ADMIN_ROLE, admin);
         mystery.grantRole(DEFAULT_ADMIN_ROLE, multisig);             mystery.renounceRole(DEFAULT_ADMIN_ROLE, admin);
