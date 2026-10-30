@@ -13,6 +13,11 @@
   node_bundler = "esbuild"
 
 [[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"

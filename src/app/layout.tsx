@@ -28,6 +28,15 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {/* OBS-125 first-party analytics — consent-gated SDK (public/obs-analytics.js).
+            Must load before wallet-provider SDKs hydrate; sends nothing pre-consent (R2). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "window.OBS_ANALYTICS_PRODUCT='pff';window.OBS_BUILD_VERSION='';",
+          }}
+        />
+        <script src="/obs-analytics.js" defer />
         {children}
       </body>
     </html>
