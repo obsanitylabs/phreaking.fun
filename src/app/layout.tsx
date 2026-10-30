@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,7 +38,9 @@ export default function RootLayout({
           }}
         />
         <script src="/obs-analytics.js" defer />
-        {children}
+        {/* WagmiProvider tree — removed by e6796e8, never restored by f2a7fb1;
+            without it SSR of / throws WagmiProviderNotFoundError (prod 500). */}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
