@@ -1,21 +1,21 @@
 # OBS-125 — First-party analytics (Netlify-native)
 
-Board direction 2026-10-30: existing infra only; each site gets its own dashboard baked in on its own domain, running in the GitHub repo + Netlify instance. Storage is **Netlify Blobs** — Netlify, Inc. is the sole processor (site hosting + storage under its DPA); there is no analytics vendor and no other processor (C9 amended per GC OBS-156). Full compliance delta vs the earlier PostHog-on-VPS design: `docs/COMPLIANCE-DELTA.md`. Privacy notice: `public/analytics-notice.html` (GC-approved text).
+Board direction 2026-10-30: existing infra only; each site gets its own dashboard baked in on its own domain, running in the GitHub repo + Netlify instance. Storage is **Netlify Blobs** — Netlify, Inc. is the sole processor (site hosting + storage under its DPA); there is no analytics vendor and no other processor (C9 amended per GC OBS-156). Full compliance delta vs the earlier PostHog-on-VPS design: `docs/COMPLIANCE-DELTA.md`. Board direction (OBS-169, 2026-10-30): analytics are **default-on** — no consent gate, no banner, no notice page. Aggregate product metrics only; no personal information is collected.
 
 ## What landed here
 
 | Piece | Path | Purpose |
 |---|---|---|
-| Collector | `netlify/functions/collect.mjs` → `POST /api/collect` | R1 metric-dictionary allowlist (query-strip, host-only referrer, extras dropped+counted), R2 consent fail-closed (451), R3 IP truncation, R6 bot filter (counted, never stored) |
+| Collector | `netlify/functions/collect.mjs` → `POST /api/collect` | R1 metric-dictionary allowlist (query-strip, host-only referrer, extras dropped+counted), R3 IP truncation, R6 bot filter (counted, never stored) |
 | Dashboard data | `netlify/functions/insights.mjs` → `GET /api/insights` | Bearer-token aggregates: WAU, new users, activation, D1/D7/D30 cohorts, funnels, channel mix, share rate, data-quality counters. 404 on bad token. |
 | Retention | `netlify/functions/retention-purge.mjs` | Scheduled daily 03:17 UTC, deletes >90d day-partitions (R4) |
 | Dashboard | `public/insights/index.html` → `/insights/` | Token-auth page on this site's own domain; `?peer=https://<sibling>` joins both products for the investor board; Print→PDF weekly export |
-| SDK | `public/obs-analytics.js` → `/obs-analytics.js` | First-party consent gate: opt-in, revocable, D4 first-touch UTMs, **sends nothing pre-consent** |
+| SDK | `public/obs-analytics.js` → `/obs-analytics.js` | First-party default-on SDK (OBS-169): D4 first-touch UTMs, aggregate metrics only, **no consent gate** |
 | Acceptance | `verify/verify-e2e.sh` | Wire test against the deployed site |
 
 ## Integration state in this repo
 
-- `/obs-analytics.js` loads via `src/app/layout.tsx` before app hydration. Default state is **not consented** — no data is sent until the visitor opts in through the consent UI.
+- `/obs-analytics.js` loads via `src/app/layout.tsx` before app hydration. Per OBS-169 the SDK is **default-on** — page views and events are sent without any consent gate.
 - **Not yet wired (deliberately):** the consent UI toggle (needs GC-approved notice text), and wallet-event emit calls (`OBS.event(...)`) at the `wallet_connected` / box-flow steps.
 - Required Netlify env (from the company secret store, never committed): `INSIGHTS_TOKEN` (bearer for `/api/insights`); `INSIGHTS_ALLOWED_ORIGIN` only on the site hosting the cross-origin investor board.
 
