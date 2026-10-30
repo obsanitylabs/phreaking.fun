@@ -7,6 +7,7 @@ import {BoxTokenRegistry} from "../src/BoxTokenRegistry.sol";
 import {TokenPricer} from "../src/TokenPricer.sol";
 import {ITokenPricer} from "../src/interfaces/ITokenPricer.sol";
 import {IBoxExecutor} from "../src/interfaces/IBoxExecutor.sol";
+import {WhiteBox} from "../src/WhiteBox.sol";
 
 contract MockExecutor is IBoxExecutor {
     address public tokenOut;
@@ -230,5 +231,92 @@ contract DepositFlowTest is MysteryBoxBaseTest {
         vm.prank(user);
         address out = box.deposit(2 ether, tokenIn);
         assertEq(out, address(0xDD));
+    }
+}
+
+contract NativeEtherDepositTest is MysteryBoxBaseTest {
+    // OBS-128 H-1: donation paths must price and accept native Ether (zero-address convention).
+    function _prepareNative() internal {
+        vm.deal(user, 10 ether);
+        vm.startPrank(admin);
+        registry.registerToken(address(0), 18);
+        registry.setPoolMembership(BoxTokenRegistry.BoxType.MYSTERY, address(0), true);
+        pricer.setPrice(address(0), 2000 * 1e8, 18); // $2000/whole ETH — symmetric with tokenIn for cap tests.
+        vm.stopPrank();
+    }
+
+    function test_NativeEth_Deposit_Succeeds() public {
+        _prepareNative();
+        executor.setOutput(address(0xDD));
+        vm.prank(user);
+        address out = box.deposit{value: 1 ether}(1 ether, address(0));
+        assertEq(out, address(0xDD));
+        assertEq(box.totalValueAtRisk(), 2000 * 1e8);
+        assertEq(box.walletDeposited(user), 2000 * 1e8);
+    }
+
+    function test_NativeEth_MsgValueMismatch_Reverts() public {
+        _prepareNative();
+        vm.prank(user);
+        vm.expectRevert("MysteryBoxBase: msg.value mismatch");
+        box.deposit{value: 0.5 ether}(1 ether, address(0)); // too little
+        vm.prank(user);
+        vm.expectRevert("MysteryBoxBase: msg.value mismatch");
+        box.deposit{value: 2 ether}(1 ether, address(0)); // excess rejected — no unaccounted surplus
+    }
+
+    function test_NativeEth_TxCap_Enforced() public {
+        _prepareNative();
+        vm.prank(admin);
+        box.setPerTransactionCap(1000 * 1e8); // $1000 < value of 1 ETH ($2000)
+        vm.expectRevert("MysteryBoxBase: tx cap exceeded");
+        vm.prank(user);
+        box.deposit{value: 1 ether}(1 ether, address(0));
+    }
+
+    function test_NativeEth_BareTransfer_NotAccepted() public {
+        // No catch-all receive(): unattributed native ETH is rejected at the EVM level (H-1 stranding fix).
+        vm.expectRevert();
+        address(box).call{value: 1 ether}("");
+    }
+
+    function test_NativeEth_Paused_Blocked() public {
+        _prepareNative();
+        vm.prank(guardian);
+        box.pause();
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("EnforcedPause()"))));
+        vm.prank(user);
+        box.deposit{value: 1 ether}(1 ether, address(0));
+    }
+
+    function test_WhiteBox_Donate_Alias_NativeAndErc20() public {
+        _prepareNative();
+        WhiteBox white = new WhiteBox(registry, pricer, admin);
+        vm.startPrank(admin);
+        registry.setPoolMembership(BoxTokenRegistry.BoxType.WHITE, address(0), true);
+        registry.setPoolMembership(BoxTokenRegistry.BoxType.WHITE, tokenIn, true);
+        white.grantRole(white.GUARDIAN_ROLE(), guardian);
+        white.setExecutor(address(executor));
+        vm.stopPrank();
+
+        executor.setOutput(address(0xEE));
+        vm.prank(user);
+        address out = white.donate{value: 1 ether}(1 ether, address(0)); // native ETH donation
+        assertEq(out, address(0xEE));
+        assertEq(white.totalValueAtRisk(), 2000 * 1e8);
+
+        MockToken(tokenIn).mint(user, 1 ether); // ERC20 donation through the same entry point.
+        vm.startPrank(user);
+        MockToken(tokenIn).approve(address(white), 1 ether);
+        white.donate(1 ether, tokenIn);
+        vm.stopPrank();
+        assertEq(white.totalValueAtRisk(), 4000 * 1e8);
+
+        // Donation path is pauseable like every fund path (M-2).
+        vm.prank(guardian);
+        white.pause();
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("EnforcedPause()"))));
+        vm.prank(user);
+        white.donate{value: 1 ether}(1 ether, address(0));
     }
 }

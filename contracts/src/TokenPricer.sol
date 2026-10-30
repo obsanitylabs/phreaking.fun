@@ -27,14 +27,18 @@ contract TokenPricer is AccessControl, ITokenPricer {
 
     constructor(address admin) {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        // DEFAULT_ADMIN governs PRICER rotation (matches MysteryBoxBase's GUARDIAN wiring): the multisig can
+        // grant/revoke price-keeper membership after deploy without holding a role itself.
+        _setRoleAdmin(PRICER_ROLE, DEFAULT_ADMIN_ROLE);
         // Deployer keeps pricing until the Chainlink oracle wiring lands.
         _grantRole(PRICER_ROLE, admin);
     }
 
     /// @notice Set a token's USD price per whole (1e8). Sourced off-chain (Chainlink) in prod;
     ///         kept on-chain here so builds/tests never depend on live RPCs.
+    /// @dev `token == address(0)` is the zero-address convention for native chain Ether (OBS-128 H-1:
+    ///      donation paths must price native ETH alongside ERC20s); all other addresses are ERC20s.
     function setPrice(address token, uint256 priceUSDPerWhole, uint8 decimals_) external onlyRole(PRICER_ROLE) {
-        require(token != address(0), "TokenPricer: zero token");
         require(decimals_ >= 1 && decimals_ <= 36, "TokenPricer: bad decimals");
         // Bound before the uint80 cast so an oversized input reverts loudly instead of truncating silently.
         require(priceUSDPerWhole <= MAX_WHOLE_PRICE_1E8, "TokenPricer: price too large for uint80@1e8");

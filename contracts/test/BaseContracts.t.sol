@@ -47,6 +47,11 @@ contract TokenPricerTest is Test {
         pricer.setPrice(tokenA, 1e8, 18); // caller has no PRICER_ROLE
     }
 
+    function test_PricerRole_AdminIsDefaultAdmin() public {
+        // Multisig-governed rotation: DEFAULT_ADMIN governs PRICER_ROLE (matches box GUARDIAN wiring).
+        assertEq(pricer.getRoleAdmin(bytes32(keccak256("PRICER_ROLE"))), bytes32(0));
+    }
+
     function test_SetPrice_TruncationGuard() public {
         vm.prank(pricerRole);
         uint256 huge = type(uint256).max;
@@ -60,10 +65,11 @@ contract TokenPricerTest is Test {
         pricer.price(unknown);
     }
 
-    function test_SetPrice_ZeroAddress_Reverts() public {
+    function test_SetPrice_NativeEther_ZeroAddress() public {
+        // address(0) is the native-Ether convention (OBS-128 H-1 donation-path support).
         vm.prank(pricerRole);
-        vm.expectRevert("TokenPricer: zero token");
-        pricer.setPrice(address(0), 1e8, 18);
+        pricer.setPrice(address(0), 2500 * 1e8, 18);
+        assertEq(pricer.price(address(0)), 2500 * 1e8);
     }
 
     function test_GetUSDValue() public {

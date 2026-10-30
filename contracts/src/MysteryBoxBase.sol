@@ -128,7 +128,11 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
     // ---- deposit pipeline ---------------------------------------------------------
 
     /// @notice Deposit `amount` of whitelisted `tokenIn` and run this box's swap. NonReentrant + paused gate.
-    function deposit(uint256 amount, address tokenIn) external nonReentrant whenNotPaused returns (address tokenOut) {
+    ///         `tokenIn == address(0)` denotes native Ether (zero-address convention, OBS-128 H-1 donation
+    ///         path): msg.value must equal amount exactly. Bare transfers are intentionally NOT accepted —
+    ///         no catch-all receive() exists, so native ETH can never sit in the contract unattributed;
+    ///         every unit passes cap accounting and emits DepositReceived before delegation.
+    function deposit(uint256 amount, address tokenIn) public payable nonReentrant whenNotPaused returns (address tokenOut) {
         require(amount > 0, "MysteryBoxBase: zero amount");
         _checkDepositCaps(msg.sender, tokenIn, amount);
 
@@ -137,7 +141,11 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
         _totalValueAtRisk += value;
         _walletDeposited[msg.sender] += value;
 
-        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amount);
+        if (tokenIn == address(0)) {
+            require(msg.value == amount, "MysteryBoxBase: msg.value mismatch");
+        } else {
+            IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amount);
+        }
 
         tokenOut = _executeSwap(msg.sender, tokenIn, amount, value); // interaction last (CEI)
     }
