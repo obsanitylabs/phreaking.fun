@@ -9,7 +9,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 ///         Non-upgradeable for build day; UUPS later if needed. MYSTERY is an additive enum value
 ///         appended after RED/BLUE/GREEN so existing numeric indices stay stable.
 contract BoxTokenRegistry is AccessControl {
-    enum BoxType { RED, BLUE, GREEN, MYSTERY, WHITE, ORANGE, YELLOW, PINK, PURPLE, RAINBOW }
+    enum BoxType { RED, BLUE, GREEN, MYSTERY, WHITE, ORANGE, YELLOW, PINK, PURPLE, RAINBOW, BLACK, CHECKERED, SILVER, GOLD, DIAMOND, RUSSIAN_FLAG, COINGATCHA }
 
     struct TokenInfo {
         uint8 decimals;
