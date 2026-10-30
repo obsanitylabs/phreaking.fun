@@ -67,6 +67,7 @@ contract TokenPricer is AccessControl, ITokenPricer {
     function priceOf(address token) external view returns (uint256 usdPerWhole1e8, uint8 decimals_) {
         Price storage p = _prices[token];
         require(p.decimals != 0, "TokenPricer: unknown token");
+        _requireFresh(token); // same freshness contract as price()/getUSDValue(); never serve stale reads
         usdPerWhole1e8 = uint256(p.priceUSDPerWhole);
         decimals_ = p.decimals;
     }

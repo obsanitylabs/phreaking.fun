@@ -68,7 +68,7 @@ deploy at 0 (= unlimited) — the script logs a loud warning; set them before la
 ## Tests
 
 ```shell
-$ forge test    # 49 passed / 0 failed across 10 suites
+$ forge test    # 59 passed / 0 failed across 11 suites
 ```
 
 Covers: pause-in-one-tx, timelocked unpause, tx/total-VaR/wallet caps, role gating (OZ v5 custom errors), CEI

@@ -107,7 +107,9 @@ contract ReferralRegistry is AccessControl, Pausable, ReentrancyGuard {
     }
 
     /// @notice Queue an unpause effective UNPAUSE_DELAY later (timelocked unpause invariant).
-    function queueUnpause() external onlyRole(GUARDIAN_ROLE) {
+    /// @dev    Only queueable while paused so a stale queue can never outlive a later emergency pause
+    ///         (same remediation as MysteryBoxBase).
+    function queueUnpause() external onlyRole(GUARDIAN_ROLE) whenPaused {
         require(_unpauseQueuedAt == 0, "ReferralRegistry: already queued");
         _unpauseQueuedAt = block.timestamp;
         emit UnpauseQueued(block.timestamp + UNPAUSE_DELAY);

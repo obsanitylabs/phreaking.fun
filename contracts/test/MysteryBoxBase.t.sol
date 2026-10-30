@@ -105,6 +105,14 @@ contract PauseUnpauseTest is MysteryBoxBaseTest {
         box.releaseUnpause();
     }
 
+    function test_QueueUnpause_WhenNotPaused_Reverts() public {
+        // A queue created while unpaused could outlive a later emergency pause and auto-lift it; reject it.
+        vm.prank(guardian);
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("ExpectedPause()"))));
+        box.queueUnpause();
+        assertEq(box.unpauseReleaseAt(), 0);
+    }
+
     bytes32 constant GUARDIAN_ROLE = keccak256("GUARDIAN");
 
     function test_Pause_OnlyGuardian() public {

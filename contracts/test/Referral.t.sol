@@ -199,6 +199,13 @@ contract ReferralPauseTest is ReferralBase {
         _register(referee1, uplink); // works again post-unpause.
     }
 
+    function test_QueueUnpause_WhenNotPaused_Reverts() public {
+        vm.prank(guardian);
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("ExpectedPause()"))));
+        registry.queueUnpause();
+        assertEq(registry.unpauseReleaseAt(), 0);
+    }
+
     function test_QueueUnpause_DoubleQueue_Reverts() public {
         vm.startPrank(guardian);
         registry.pause();

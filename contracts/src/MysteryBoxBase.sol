@@ -77,7 +77,10 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
     }
 
     /// @notice Queue an unpause that becomes effective UNPAUSE_DELAY later (timelocked unpause invariant).
-    function queueUnpause() external onlyRole(GUARDIAN_ROLE) {
+    /// @dev    Only queueable while paused. Without `whenPaused`, a guardian could queue an unpause, a later
+    ///         emergency pause would not invalidate it, and anyone could lift that newer pause once the stale
+    ///         24h window elapsed. Scoping the queue to an active pause keeps the timelock anchored to it.
+    function queueUnpause() external onlyRole(GUARDIAN_ROLE) whenPaused {
         require(_unpauseQueuedAt == 0, "MysteryBoxBase: already queued");
         _unpauseQueuedAt = block.timestamp;
         emit UnpauseQueued(block.timestamp + UNPAUSE_DELAY);
