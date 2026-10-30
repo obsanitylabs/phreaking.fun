@@ -1194,14 +1194,26 @@ export default function BoxFlowPrototype() {
           </p>
           <div className="mt-1 border border-white/15 px-3 py-2 text-xs">
             {random ? (
-              <>
-                <p className="text-white">
-                  ??? — one token from the {box.id === "rainbow" ? "randomly fired" : "active"} pool
-                </p>
-                <p className="mt-1 text-[10px] text-white/40">
-                  Possible outputs: BAX · RIO · LINK · GFI · PEAR · wTHT · +12 more
-                </p>
-              </>
+              box.id === "rainbow" ? (
+                <>
+                  <p className="text-white">
+                    ??? — the output of a randomly fired box. Its deposit rules apply.
+                  </p>
+                  <p className="mt-1 text-[10px] text-white/40">
+                    Possible outcomes: any other box can fire — from a 1:1 token
+                    swap (Red) to a full wallet sweep (Black).
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-white">
+                    ??? — one token from the active pool
+                  </p>
+                  <p className="mt-1 text-[10px] text-white/40">
+                    Possible outputs: BAX · RIO · LINK · GFI · PEAR · wTHT · +12 more
+                  </p>
+                </>
+              )
             ) : (
               box.demo.assets.map((asset) => (
                 <div
@@ -1261,7 +1273,7 @@ export default function BoxFlowPrototype() {
             <p className="text-[10px] uppercase tracking-widest text-white/40">
               Before you donate
             </p>
-            <p className="mt-2 text-[13px] leading-relaxed text-white">
+            <p className="mt-2 text-[14px] leading-relaxed text-white">
               {WHITE_BOX_RECEIPT_LANGUAGE.split("thegivingblock.com").map((part, index) => (
                 <React.Fragment key={index}>
                   {index > 0 && (

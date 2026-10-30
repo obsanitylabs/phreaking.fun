@@ -1,7 +1,7 @@
 # phreaking.fun — Mystery Box UX flows and copy deck
 
 **Owner:** Product Designer (UI/UX & Brand) · **Task:** OBS-177
-**Status:** Design v1 for engineering handoff · **Contract branch:** `build-day-boxes` @ `385148c`
+**Status:** Design v1.1 — CPO-approved copy changes applied · **Contract branch:** `build-day-boxes`
 **Source of truth:** `box-specs` issue document on OBS-129 (Drive guides + CEO build decisions, 2026-10-29)
 
 > Sepolia-only until the external audit clears. Nothing in this document authorises mainnet
@@ -120,7 +120,7 @@ The hover state (desktop) or expanded state (mobile) adds the long copy from §4
 - **Russian Flag** — "A random 24-hour GMX long or short on Russian-developed coins."
 - **Silver Box** — "Swap into the top coins held by hedge funds and VCs."
 - **Gold Box** — "The same mirror, aimed at microcaps under $30M."
-- **Diamond Box** — "Dollar-for-dollar into sub-$10M coins. 1000x or death."
+- **Diamond Box** — "Dollar-for-dollar into sub-$10M coins, filled over 24 hours."
 - **CoinGatcha** — "Grab a ball. Keep the coin inside."
 
 ### 4.3 Long copy (catalogue detail / tooltip)
@@ -452,9 +452,20 @@ decision.
    before execution."
 
 **Random-box treatment (Mystery, Rainbow)**
+
+Mystery:
 - `YOU RECEIVE` shows `??? — one token from the {N}-token pool`.
 - Below it: `POSSIBLE OUTPUTS` with up to six token logos and "+{n} more".
 - Required acknowledgement: "I understand the output is random and cannot be chosen."
+
+Rainbow (trust-critical — the fired box's rules apply, including Black's wallet sweep):
+- `YOU RECEIVE` shows `??? — the output of a randomly fired box. Its deposit rules apply.`
+- Below it: `Possible outcomes: any other box can fire — from a 1:1 token swap (Red) to a full wallet sweep (Black).`
+  Do not show a token-list "possible outputs" for Rainbow.
+- Add warning line: `If Black Box fires, the sweep covers your entire wallet — not just the assets you deposited.`
+- Required acknowledgement: "I understand a random box will fire and I cannot choose it."
+- CTO action: confirm the on-chain fireable set of `RainbowBox` (Black included?) so the copy
+  states what the contract actually does.
 
 **Irreversible treatment (Black, Checkered, Russian Flag)**
 - Amber warning block with icon and heading `THIS CANNOT BE UNDONE`.
@@ -547,7 +558,7 @@ SUBMITTED → ROUTING → SWAPPING → SETTLING → FINALIZED
    - `COPY TX HASH`
 5. For multi-asset results: a list of received tokens, each with its own links.
 6. Secondary actions: `OPEN ANOTHER {BOX}` (prefills the same box), `BACK TO TOOLKIT`.
-7. White: `DONATION RECEIPT` variant with charity name, amount, anonymous/no-receipt reminder,
+7. White: `DONATION COMPLETE` variant with charity name, amount, anonymous/no-receipt reminder,
    and the same quote language in fine print.
 8. Black: Harold NFT card with the NFT image, `VALUE AT SWEEP: $X,XXX.XX` pinned in the
    upper-right corner of the card, token ID, and `VIEW NFT` link.
@@ -642,7 +653,7 @@ Diamond `#7DD3FC`, CoinGatcha `#F59E0B`, Mystery `#22E584`.
 - Reduced motion: disable scanline, box glow transition, claw animation, and stage pulse.
 - Contrast: white/green on black meets AA; amber warning text uses `#FD9C26` on `#1A1206`
   with bold weight; do not put red text on black below 16px.
-- English first; layout tolerates +40% string length for Spanish, Vietnamese, Russian, Arabic.
+- English first; layout tolerates +40% string length for Chinese, Spanish, Vietnamese, Russian, Arabic.
   Arabic requires RTL mirroring of the flow shell; do not mirror numbers or tx hashes.
 
 ### 7.4 Responsive
@@ -778,8 +789,11 @@ The UI must render paused and cap-reached states:
 - `QUOTE EXPIRES IN {n}s` / `REFRESH QUOTE` / `QUOTE UPDATED`
 - `INSUFFICIENT {TOKEN}. YOU HAVE {balance}.`
 - `THIS CANNOT BE UNDONE.` / `I understand this is irreversible.`
-- `I understand the output is random and cannot be chosen.`
+- `I understand the output is random and cannot be chosen.` (Mystery)
+- `I understand a random box will fire and I cannot choose it.` (Rainbow)
 - `I understand this donation is anonymous and I will not receive a tax receipt.`
+- `I understand this is irreversible and will zero my balances.` (Black)
+- `I understand I may receive less value and there are no takebacks.` (Checkered)
 - `I understand my funds are locked for 24 hours and profit is taxed.`
 - `Your funds are in the route. We are checking.`
 - `Transaction reverted. Your deposit was not taken.`
@@ -794,3 +808,4 @@ irreversible or error screens; personality belongs in box names and catalogue co
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-10-30 | v1: catalogue, shared state machine, per-box modules, tokens, a11y, handoff checklist, prototype | Product Designer |
+| 2026-10-30 | v1.1: CPO-approved changes — Rainbow disclosure (P0), White verbatim panel ≥14px (P0), White result renamed `DONATION COMPLETE`, Diamond one-liner, Chinese localisation, punctuation alignment, final acknowledgement copy | Product Designer |
