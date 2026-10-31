@@ -11,6 +11,12 @@ import {
 } from "@/components/design/boxFlows/catalog";
 import type { BoxDefinition, BoxId } from "@/components/design/boxFlows/types";
 import {
+  SEPOLIA_CHAIN_ID,
+  trackBoxConfigured,
+  trackBoxOpenedWithActivation,
+  trackWalletConnected,
+} from "@/lib/analytics";
+import {
   capReachedCopy,
   gateFromSnapshot,
   readBoxStatus,
@@ -178,6 +184,51 @@ export function BoxFlowApp() {
       cancelled = true;
     };
   }, []);
+
+  // OBS-358 — campaign-funnel `wallet_connected` (funnel C0). Sepolia only, once per
+  // session; the helper dedupes and guards on window.OBS. This flow reads the raw
+  // provider (no wagmi/RainbowKit), so gate on `eth_accounts`: a chain id that is
+  // merely selected in an installed wallet is NOT a dapp connection. The global
+  // AnalyticsInit (wagmi) also covers the real connector on every page.
+  useEffect(() => {
+    if (chainId !== SEPOLIA_CHAIN_ID) return;
+    const ethereum = (
+      window as Window & { ethereum?: { request?: (args: { method: string }) => Promise<unknown> } }
+    ).ethereum;
+    if (!ethereum?.request) return;
+    ethereum
+      .request({ method: "eth_accounts" })
+      .then((accounts: unknown) => {
+        if (Array.isArray(accounts) && accounts.length > 0) trackWalletConnected(chainId);
+      })
+      .catch(() => undefined);
+  }, [chainId]);
+
+  // OBS-358 — campaign-funnel progress through the /boxes flow, mirroring the OBS-354
+  // home-modal wiring and conforming to metric-dictionary v2.1 §4.4 (OBS-491). The
+  // `pff_purchase` step_name closed list is exactly `box_configured` (step 1) |
+  // `purchase_confirmed` (step 2); `purchase_submitted` is deliberately NOT emitted,
+  // and `purchase_confirmed` requires a genuine on-chain purchase confirmation — this
+  // Sepolia preview flow never broadcasts (see flowState `signBlockedReason`), so no
+  // purchase-branch step fires here. Rising-edge on the step machine so BACK/CANCEL
+  // retries and "OPEN ANOTHER" re-emit correctly.
+  const prevStepRef = useRef<string | null>(null);
+  useEffect(() => {
+    const step = state?.step ?? null;
+    const prev = prevStepRef.current;
+    if (step === prev) return;
+    prevStepRef.current = step;
+    if (!selected || step === null) return;
+    // C1 — first completed box configuration (configure -> review).
+    if (step === "review" && prev === "configure") {
+      trackBoxConfigured(chainId ?? undefined);
+    }
+    // `core_action box_opened` on every successful open, plus first-open
+    // `activation_complete` (withheld unless a Sepolia `wallet_connected` exists).
+    if (step === "result") {
+      trackBoxOpenedWithActivation(selected.id, `box_${selected.id}_boxes_flow`);
+    }
+  }, [state?.step, selected, chainId]);
 
   useEffect(() => {
     if (!selected) {
