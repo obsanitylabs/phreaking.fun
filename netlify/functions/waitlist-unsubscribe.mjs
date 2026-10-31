@@ -5,7 +5,9 @@ import { consumeToken } from '../shared/tokens.mjs';
 
 const OK = { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }, body: JSON.stringify({ ok: true }) };
 
-export default async (req, context) => {
+import { respond, header, clientIp } from '../shared/util.mjs';
+
+const handler = async (req, context) => {
   let data = null;
   if (req.method === 'GET') {
     data = await consumeToken(context, new URL(req.url).searchParams.get('token') || '', 'unsubscribe');
@@ -31,3 +33,5 @@ export default async (req, context) => {
 };
 
 export const config = { path: '/api/waitlist/unsubscribe' };
+
+export default respond(handler);

@@ -26,7 +26,9 @@ const OK_BODY = {
   message: 'Check your inbox — we sent a confirmation link. Unconfirmed requests expire after 7 days.',
 };
 
-export default async (req, context) => {
+import { respond, header, clientIp } from '../shared/util.mjs';
+
+const handler = async (req, context) => {
   if (req.method !== 'POST') return json(null, 405, { error: 'method_not_allowed' });
 
   let b = {};
@@ -43,7 +45,7 @@ export default async (req, context) => {
   if (!b.consent) return json(null, 400, { error: 'consent_required' });
 
   // C3: hash of MASKED IP, rate-limit keys only, purged after 72h by the scheduler.
-  const clientIp = req.headers?.['x-nf-client-connection-ip'] || req.headers?.['x-forwarded-for']?.split(',')[0] || 'unknown';
+  const clientIp = clientIp(req);
   const iHash = ipHash(maskIp(clientIp));
   const eHash = emailHash(email);
 
@@ -87,7 +89,7 @@ export default async (req, context) => {
       created_at: nowIso(),
       last_emailed_at: null,
       // NOTE: no ip_hash field — rate limiting uses 72h transient keys only (C3/GC)
-      user_agent_family: uaFamily(req.headers?.['user-agent']),
+      user_agent_family: uaFamily(header(req, 'user-agent')),
     };
     await storePut(context, key, record);
   }
@@ -110,3 +112,5 @@ export default async (req, context) => {
 };
 
 export const config = { path: '/api/waitlist' };
+
+export default respond(handler);

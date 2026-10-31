@@ -6,7 +6,9 @@ import { recordEvent } from '../shared/analytics.mjs';
 import { consumeToken } from '../shared/tokens.mjs';
 import { PRODUCTS } from '../shared/util.mjs';
 
-export default async (req, context) => {
+import { respond, header, clientIp } from '../shared/util.mjs';
+
+const handler = async (req, context) => {
   const token = new URL(req.url).searchParams.get('token') || '';
   const data = await consumeToken(context, token, 'confirm');
   const product = data?.product;
@@ -47,3 +49,5 @@ export default async (req, context) => {
 };
 
 export const config = { path: '/api/waitlist/confirm' };
+
+export default respond(handler);

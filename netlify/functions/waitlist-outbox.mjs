@@ -4,7 +4,9 @@
 import { storeList } from '../shared/store.mjs';
 import { bearerToken, timingSafeEqualStr, json } from '../shared/util.mjs';
 
-export default async (req, context) => {
+import { respond, header, clientIp } from '../shared/util.mjs';
+
+const handler = async (req, context) => {
   if (process.env.WAITLIST_STAGING !== '1') return json(null, 404, { error: 'not_found' });
   const token = bearerToken(req);
   const expect = process.env.WAITLIST_ADMIN_TOKEN;
@@ -13,3 +15,5 @@ export default async (req, context) => {
 };
 
 export const config = { path: '/api/waitlist/outbox' };
+
+export default respond(handler);

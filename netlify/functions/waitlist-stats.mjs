@@ -6,7 +6,9 @@ import { storeList } from '../shared/store.mjs';
 import { authScope, authFailure, scopeAllows } from '../shared/auth.mjs';
 import { PRODUCTS, dayKey, daysBetween, PENDING_TTL_DAYS } from '../shared/util.mjs';
 
-export default async (req, context) => {
+import { respond, header, clientIp } from '../shared/util.mjs';
+
+const handler = async (req, context) => {
   const scope = authScope(req, 'WAITLIST_ADMIN_TOKEN');
   if (!scope) return authFailure();
   if (req.method !== 'GET') return authFailure();
@@ -78,3 +80,5 @@ function emptyProduct() {
 }
 
 export const config = { path: '/api/waitlist/stats' };
+
+export default respond(handler);

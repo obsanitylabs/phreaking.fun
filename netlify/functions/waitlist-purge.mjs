@@ -10,7 +10,9 @@
 import { storeList, storePut, storeDelete } from '../shared/store.mjs';
 import { daysBetween, PENDING_TTL_DAYS, dayKey } from '../shared/util.mjs';
 
-export default async (req, context) => {
+import { respond, header, clientIp } from '../shared/util.mjs';
+
+const handler = async (req, context) => {
   const report = { pending_deleted: 0, verified_expired: 0, rate_keys: 0, tokens: 0, accesslogs: 0, suppression: 0 };
 
   for (const [key, rec] of Object.entries(await storeList(context, 'signup:'))) {
@@ -77,3 +79,5 @@ async function archiveConsent(context, rec) {
 // deploy fails validation if it does. This is the scheduled retention purge, so
 // it keeps only the schedule (no HTTP path).
 export const config = { schedule: '0 3 * * *' };
+
+export default respond(handler);

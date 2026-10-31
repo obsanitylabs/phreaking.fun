@@ -57,9 +57,36 @@ export function uaFamily(ua) {
   return 'other';
 }
 
+// Header access that works for the Netlify Functions v2 Request (a Headers object)
+// and for the plain object layout used in local tests.
+export function header(req, name) {
+  const h = req?.headers;
+  if (!h) return null;
+  if (typeof h.get === 'function') return h.get(name);
+  return h[name] ?? h[String(name).toLowerCase()] ?? null;
+}
+
+export function clientIp(req) {
+  return header(req, 'x-nf-client-connection-ip')
+    || String(header(req, 'x-forwarded-for') || '').split(',')[0].trim()
+    || 'unknown';
+}
+
 export function bearerToken(req) {
-  const h = req.headers?.authorization || '';
-  return h.startsWith('Bearer ') ? h.slice(7).trim() : (req.headers?.['x-waitlist-token'] || null);
+  const h = header(req, 'authorization') || '';
+  return h.startsWith('Bearer ') ? h.slice(7).trim() : (header(req, 'x-waitlist-token') || null);
+}
+
+// Netlify Functions v2 handlers must return a web Response. The waitlist handlers
+// return a plain {status, headers, body}; toResponse adapts either shape.
+export function toResponse(r) {
+  if (r instanceof Response) return r;
+  if (r === undefined || r === null) return new Response(null, { status: 204 });
+  return new Response(r.body ?? '', { status: r.status ?? 200, headers: { ...(r.headers || {}) } });
+}
+
+export function respond(fn) {
+  return async (req, context) => toResponse(await fn(req, context));
 }
 
 // Constant-time string compare (auth token matching). Length mismatch = false.

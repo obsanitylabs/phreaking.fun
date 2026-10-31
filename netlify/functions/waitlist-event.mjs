@@ -4,9 +4,11 @@
 import { recordEvent, EVENT_TYPES } from '../shared/analytics.mjs';
 import { PRODUCTS, cleanUtm, json } from '../shared/util.mjs';
 
-export default async (req, context) => {
+import { respond, header, clientIp } from '../shared/util.mjs';
+
+const handler = async (req, context) => {
   if (req.method !== 'POST') return json(null, 405, { error: 'method_not_allowed' });
-  const origin = req.headers?.origin;
+  const origin = header(req, 'origin');
   if (origin && process.env.WAITLIST_ALLOWED_ORIGIN && origin !== process.env.WAITLIST_ALLOWED_ORIGIN) {
     return json(null, 403, { error: 'origin_not_allowed' });
   }
@@ -27,3 +29,5 @@ export default async (req, context) => {
 };
 
 export const config = { path: '/api/waitlist/event' };
+
+export default respond(handler);

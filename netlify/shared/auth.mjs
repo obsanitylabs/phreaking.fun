@@ -6,7 +6,7 @@
 //   WAITLIST_EXPORT_TOKEN / WAITLIST_EXPORT_TOKEN_<PRODUCT> — same convention for export.
 // Rotation ≤90d (OBS-155 precedent). All auth failures return a constant 404 —
 // no distinction between missing/invalid/cross-scope (enumeration-safe, R7 style).
-import { timingSafeEqualStr } from './util.mjs';
+import { timingSafeEqualStr, bearerToken } from './util.mjs';
 
 function envPrefixToProduct(name, prefix) {
   const rest = name.slice(prefix.length).replace(/^_/, '');
@@ -29,8 +29,7 @@ export function resolveScopedTokens(prefix) {
 
 // Match bearer token to a scope. Returns scope ('*' or product key) or null.
 export function authScope(req, prefix) {
-  const h = req.headers?.authorization || '';
-  const token = h.startsWith('Bearer ') ? h.slice(7).trim() : (req.headers?.['x-waitlist-token'] || '');
+  const token = bearerToken(req) || '';
   if (!token) return null;
   for (const { token: candidate, scope } of resolveScopedTokens(prefix)) {
     if (timingSafeEqualStr(token, candidate)) return scope;

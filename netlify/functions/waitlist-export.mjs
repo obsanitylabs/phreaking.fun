@@ -10,7 +10,9 @@ const CSV_COLUMNS = ['product', 'email', 'status', 'consented_at', 'verified_at'
   'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
   'referral_code', 'referred_by_code', 'landing_path', 'created_at'];
 
-export default async (req, context) => {
+import { respond, header, clientIp } from '../shared/util.mjs';
+
+const handler = async (req, context) => {
   const scope = authScope(req, 'WAITLIST_EXPORT_TOKEN');
   if (!scope) return authFailure();
   if (req.method !== 'GET') return authFailure();
@@ -26,12 +28,12 @@ export default async (req, context) => {
     rows.push(CSV_COLUMNS.map((c) => csvCell(c === 'status' ? status : rec[c])).join(','));
   }
 
-  const clientIp = req.headers?.['x-nf-client-connection-ip'] || req.headers?.['x-forwarded-for']?.split(',')[0] || 'unknown';
+  const clientIp = clientIp(req);
   await storePut(context, `accesslog:export:${dayKey(Date.now())}:${Math.random().toString(36).slice(2, 10)}`, {
     action: 'waitlist_export',
     scope: scope === '*' ? (want || 'all-products') : scope,
     ip_hash: ipHash(maskIp(clientIp)), // short-lived masked hash, not exported
-    user_agent_family: uaFamily(req.headers?.['user-agent']),
+    user_agent_family: uaFamily(header(req, 'user-agent')),
     row_count: rows.length,
     ts: new Date().toISOString(),
   });
@@ -49,3 +51,5 @@ function csvCell(v) {
 }
 
 export const config = { path: '/api/waitlist/export' };
+
+export default respond(handler);
