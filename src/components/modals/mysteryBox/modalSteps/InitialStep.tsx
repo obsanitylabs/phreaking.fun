@@ -10,6 +10,10 @@ import { useMysteryBoxStore, useWhiteBoxStore, useBoxFlowStore, useUIStore } fro
 import { currencies, getBoxId } from "@/constants/currencies";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import {
+  trackBoxConfigured,
+  trackPurchaseSubmitted,
+} from "@/lib/analytics";
 
 interface InitialStepProps {
   title: string;
@@ -28,7 +32,7 @@ const InitialStep: React.FC<InitialStepProps> = ({
 }) => {
   const { showToast } = useUIStore();
   const { openConnectModal } = useConnectModal();
-  const { isConnected } = useAccount();
+  const { isConnected, chainId } = useAccount();
   
   const { purchaseBox, setTransactionHash, finishProcessing, errorProcessing } = useMysteryBoxStore();
   const { setPurchaseData } = useWhiteBoxStore();
@@ -229,6 +233,9 @@ const InitialStep: React.FC<InitialStepProps> = ({
         throw new Error("Please select a valid token for all rows");
       }
 
+      // OBS-354 — first completed box configuration (campaign funnel C1).
+      trackBoxConfigured(chainId);
+
       selectedTokens.forEach((code, index) => {
         const currency = currencies.find((c) => c.code === code);
         if (!currency) {
@@ -287,6 +294,9 @@ const InitialStep: React.FC<InitialStepProps> = ({
         
         const boxId = getBoxId(boxType);
         
+        // OBS-354 — purchase submitted (campaign funnel progression).
+        trackPurchaseSubmitted(chainId);
+
         const result = await buyMysteryBox(
           boxId,
           purchaseAmounts.filter((_, index) => selectedTokens[index] !== "None"),

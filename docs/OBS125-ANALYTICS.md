@@ -16,7 +16,8 @@ Board direction 2026-10-30: existing infra only; each site gets its own dashboar
 ## Integration state in this repo
 
 - `/obs-analytics.js` loads via `src/app/layout.tsx` before app hydration. Per OBS-169 the SDK is **default-on** — page views and events are sent without any consent gate.
-- **Not yet wired (deliberately):** the consent UI toggle (needs GC-approved notice text), and wallet-event emit calls (`OBS.event(...)`) at the `wallet_connected` / box-flow steps.
+- **Not yet wired (deliberately):** the consent UI toggle (needs GC-approved notice text).
+- **Funnel events wired (OBS-354):** `wallet_connected` (Sepolia only, once per session, on connect + auto-reconnect), `funnel_step pff_purchase` (`box_configured` / `purchase_submitted` / `purchase_confirmed`), `core_action box_opened`, and first-open `activation_complete`. Emitters live in `src/lib/analytics.ts` (all guarded on `window.OBS`); verification: `src/lib/analytics.test.ts` + `node --import tsx scripts/verify-funnel-events.mjs`.
 - Required Netlify env (from the company secret store, never committed): `INSIGHTS_TOKEN` (bearer for `/api/insights`); `INSIGHTS_ALLOWED_ORIGIN` only on the site hosting the cross-origin investor board.
 
 ## Go-live gates (do not enable tracking before all are true)

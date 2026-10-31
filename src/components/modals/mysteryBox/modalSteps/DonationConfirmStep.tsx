@@ -5,6 +5,8 @@ import { useBoxFlowStore, useWhiteBoxStore, useUIStore } from "@/stores";
 import { DONATION_WALLETS, DONATION_ORGANIZATIONS, DonationId } from "@/constants/donations";
 import { useDonation } from "@/hooks/useDonation";
 import SliderButton from "@/components/ui/SliderButton";
+import { useAccount } from "wagmi";
+import { trackPurchaseSubmitted } from "@/lib/analytics";
 
 interface DonationConfirmStepProps {
   title: string;
@@ -26,6 +28,7 @@ const DonationConfirmStep: React.FC<DonationConfirmStepProps> = ({
   const { purchaseData, donationData, setDonationData } = useWhiteBoxStore();
   const { donate, isLoading, error, hash, nftReceiptData } = useDonation();
   const { showToast } = useUIStore();
+  const { chainId } = useAccount();
 
   const donationId = donationData?.donationId;
   const organization = donationId ? DONATION_ORGANIZATIONS[donationId] : null;
@@ -81,6 +84,9 @@ const DonationConfirmStep: React.FC<DonationConfirmStepProps> = ({
 
     try {
       setIsSubmitting(true);
+
+      // OBS-354 — purchase submitted (campaign funnel progression).
+      trackPurchaseSubmitted(chainId);
 
       const totalValueETH = purchaseData.purchaseAmounts
         .reduce((sum, amt) => sum + (parseFloat(amt) || 0), 0)

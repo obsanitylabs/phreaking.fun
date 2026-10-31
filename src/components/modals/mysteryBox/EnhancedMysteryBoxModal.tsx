@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useWaitForTransactionReceipt, useAccount } from 'wagmi';
 import FrameMysteryBox from "./FrameMysteryBox";
 import SidebarModal from "./sidebarModal";
@@ -19,6 +19,10 @@ import {
   BoxType 
 } from "@/stores";
 import { useDonation } from "@/hooks/useDonation";
+import {
+  trackPurchaseConfirmed,
+  trackBoxOpenedWithActivation,
+} from "@/lib/analytics";
 
 interface EnhancedMysteryBoxModalProps {
   title: string;
@@ -75,7 +79,7 @@ const EnhancedMysteryBoxModal: React.FC<EnhancedMysteryBoxModalProps> = ({
 
   const { donationData, purchaseData } = useWhiteBoxStore();
   const { isSuccess: donationSuccess, hash: donationHash, nftReceiptData } = useDonation();
-  const { address: userAddress } = useAccount();
+  const { address: userAddress, chainId } = useAccount();
 
   useEffect(() => {
     const originalStyle = window.getComputedStyle(document.body).overflow;
@@ -227,6 +231,18 @@ const EnhancedMysteryBoxModal: React.FC<EnhancedMysteryBoxModalProps> = ({
     ? flowState.currentStep === "finished"
     : (flowState.currentStep === "finished" || mysteryBoxState.step === "finished");
   const isError = flowState.currentStep === "error" || mysteryBoxState.step === "error";
+
+  // OBS-354 — a box open completes when the flow reaches "finished". Emit once per open
+  // (rising edge), so a restake/second open emits again and only `core_action box_opened`
+  // fires after the first activation.
+  const wasFinishedRef = useRef(false);
+  useEffect(() => {
+    if (isFinished && !wasFinishedRef.current) {
+      trackPurchaseConfirmed(chainId);
+      trackBoxOpenedWithActivation(boxType, `${boxType}_box_home_modal`);
+    }
+    wasFinishedRef.current = isFinished;
+  }, [isFinished, chainId, boxType]);
 
   console.log('🔍 Modal State Debug:', {
     flowStep: flowState.currentStep,
