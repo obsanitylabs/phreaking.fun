@@ -3,6 +3,7 @@
 import { Skull } from "lucide-react";
 import type { BoxDefinition, DemoResult } from "@/components/design/boxFlows/types";
 import { WHITE_BOX_PRODUCT_LINE } from "./copy";
+import { resultSweepValue, SWEEP_VALUE_PREVIEW } from "./reviewModel";
 import {
   coingeckoSearchUrl,
   DEMO_EXPLORER_URL,
@@ -43,9 +44,17 @@ function AssetLinks({ symbol, result }: { symbol: string; result: DemoResult }) 
   );
 }
 
-export function ResultScreen({ box }: { box: BoxDefinition }) {
+export function ResultScreen({
+  box,
+  depositUsd,
+}: {
+  box: BoxDefinition;
+  /** Deposit value from the quote the user just accepted. */
+  depositUsd?: string | null;
+}) {
   const result = box.demo;
   const showTokenLinks = resultShowsTokenLinks(box);
+  const sweep = box.resultKind === "harold-nft" ? resultSweepValue(depositUsd) : null;
 
   return (
     <div data-testid="result-step">
@@ -63,8 +72,8 @@ export function ResultScreen({ box }: { box: BoxDefinition }) {
         </p>
       )}
 
-      {box.resultKind === "harold-nft" ? (
-        <HaroldNftCard box={box} />
+      {sweep ? (
+        <HaroldNftCard box={box} value={sweep.value} />
       ) : (
         <div className="mt-4 divide-y divide-white/10 border border-white/15">
           {result.assets.map((asset) => (
@@ -128,6 +137,11 @@ export function ResultScreen({ box }: { box: BoxDefinition }) {
       <p className="mt-3 border-l-2 border-white/20 pl-3 text-[11px] leading-relaxed text-white/60">
         {result.note}
       </p>
+      {sweep && (
+        <p className="mt-2 text-[11px] text-white/50" data-testid="sweep-value-note">
+          {SWEEP_VALUE_PREVIEW}
+        </p>
+      )}
       {box.resultKind === "donation" && (
         <p className="mt-2 text-[11px] text-white/50">{WHITE_BOX_PRODUCT_LINE}</p>
       )}
@@ -167,8 +181,7 @@ export function ResultScreen({ box }: { box: BoxDefinition }) {
   );
 }
 
-function HaroldNftCard({ box }: { box: BoxDefinition }) {
-  const value = box.demo.assets[0]?.amount ?? "$0.00";
+function HaroldNftCard({ box, value }: { box: BoxDefinition; value: string }) {
   return (
     <div className="mt-4 border border-white/30 bg-[#111] p-3" data-testid="harold-card">
       <div className="relative overflow-hidden border border-white/20 bg-[#1b1b1b]">

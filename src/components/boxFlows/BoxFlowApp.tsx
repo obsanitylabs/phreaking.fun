@@ -635,7 +635,9 @@ export function BoxFlowApp() {
                   {FINALITY_KEEP_OPEN}
                 </p>
               )}
-              {state.step === "result" && <ResultScreen box={selected} />}
+              {state.step === "result" && (
+                <ResultScreen box={selected} depositUsd={quote?.depositUsd} />
+              )}
               {state.step === "error" && (
                 <div data-testid="error-step">
                   <h3 className="text-lg font-bold">{REVERTED_COPY}</h3>

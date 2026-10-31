@@ -11,7 +11,13 @@ import {
   WHITE_BOX_RECEIPT_LANGUAGE,
   WHITE_PANEL_MIN_FONT_PX,
 } from "./copy";
-import { reviewDisclosure, reviewReceiveLine, reviewWarnings, signSummaryLine } from "./reviewModel";
+import {
+  reviewDisclosure,
+  reviewReceiveLine,
+  reviewWarnings,
+  resultSweepValue,
+  signSummaryLine,
+} from "./reviewModel";
 import { blockingCap, capReachedCopy, gateFromSnapshot, unpausePendingCopy } from "./boxStatusRead";
 import { canAdvanceFromConfigure, canConfirmReview, initialFlowState } from "./flowState";
 import {
@@ -243,7 +249,8 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
   assert.match(fresh.route, /native/i);
   assert.match(fresh.networkFee, /5% premium/);
   assert.match(fresh.platformFee, /5% of output/);
-  assert.match(fresh.label, /Simulated quote/);
+  assert.equal(fresh.spotBlocked, true);
+  assert.equal(fresh.label, SPOT_BLOCKED_LABEL);
 
   const cross = {
     ...red,
@@ -320,6 +327,24 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
   ]);
   assert.match(redSign, /Catalogue preview/);
   assert.equal(redSign.includes("0.05 ETH → Red Box. Network"), false);
+
+  const black = initialFlowState(BOX_BY_ID.black);
+  black.quoteIssuedAt = issuedAt;
+  const blackQuote = buildSimulatedQuote(BOX_BY_ID.black, black, issuedAt, {
+    source: "fallback",
+  });
+  const sweep = resultSweepValue(blackQuote.depositUsd);
+  assert.equal(sweep.value, blackQuote.depositUsd);
+  assert.equal(sweep.value, "$1,842.60");
+  assert.match(sweep.note, /not a wallet read/);
+  const blackSign = signSummaryLine(BOX_BY_ID.black, blackQuote, [
+    { symbol: "ETH", amount: "0.420", usd: "$1,344.00" },
+    { symbol: "USDC", amount: "498.60", usd: "$498.60" },
+  ]);
+  assert.match(blackSign, /\$1,842\.60/);
+  assert.equal(blackSign.includes("$1,842.60 →"), false);
+  assert.equal(resultSweepValue("Spot read required").value, "Sweep value unavailable");
+  assert.equal(resultSweepValue(null).value, "Sweep value unavailable");
 
   const orangeBlocked = buildSimulatedQuote(BOX_BY_ID.orange, orange, issuedAt, {
     source: "error",
