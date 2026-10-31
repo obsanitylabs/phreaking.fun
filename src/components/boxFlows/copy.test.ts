@@ -264,10 +264,37 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
     note: "Sepolia Chainlink spot · 1 feed",
   });
   assert.equal(live.spotBlocked, false);
+  assert.equal(live.outputBlocked, false);
   assert.equal(live.label, SPOT_LIVE_LABEL);
-  assert.match(live.depositUsd, /\$2,500\.00/);
-  assert.match(live.estimatedReceive, /BAX/);
+  assert.match(live.depositUsd, /\$125\.00/);
+  assert.match(live.estimatedReceive, /Catalogue preview/);
+  assert.match(live.outputNote, /not a live pool read/);
   assert.equal(QUOTE_DEMO_LABEL.includes("GMX"), true);
+
+  const orange = initialFlowState(BOX_BY_ID.orange);
+  orange.quoteIssuedAt = issuedAt;
+  const orangeLive = buildSimulatedQuote(BOX_BY_ID.orange, orange, issuedAt, {
+    source: "chainlink",
+    prices: { ETH: 2000, WBTC: 80000, USDC: 1 },
+  });
+  assert.equal(orangeLive.outputBlocked, false);
+  assert.match(orangeLive.estimatedReceive, /\$95\.00 in WBTC/);
+  assert.match(orangeLive.outputNote, /not a pool quote/);
+  assert.equal(orangeLive.label.includes("pool quote"), true);
+
+  const orangeBlocked = buildSimulatedQuote(BOX_BY_ID.orange, orange, issuedAt, {
+    source: "error",
+    prices: { USDC: 1 },
+  });
+  assert.equal(orangeBlocked.outputBlocked, true);
+  assert.equal(orangeBlocked.estimatedReceive, "Spot read required");
+
+  const mystery = buildSimulatedQuote(BOX_BY_ID.mystery, red, issuedAt, {
+    source: "chainlink",
+    prices: { ETH: 2000, USDC: 1 },
+  });
+  assert.match(mystery.estimatedReceive, /random output/);
+  assert.equal(mystery.outputBlocked, false);
 
   const now = 1_700_000_000;
   assert.equal(parseChainlinkAnswer(BigInt(2500_00000000), 8, BigInt(now - 60), now), 2500);

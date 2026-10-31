@@ -409,7 +409,9 @@ export function BoxFlowApp() {
         Production flow shell. Quotes on this page are a labelled 60-second
         simulator. Pause and cap read the Sepolia fleet when an address is
         configured. Checkered has no counterparty pool and Russian Flag does not
-        open a GMX position. Deposit value can use a Sepolia Chainlink spot read. Confirm does not open a wallet or broadcast.
+        open a GMX position. Deposit and output value can use a Sepolia Chainlink
+        spot read. That read is not a pool quote. Confirm does not open a wallet
+        or broadcast.
       </p>
       {TOOLKITS.map((toolkit) => (
         <section key={toolkit.id} className="mt-8" aria-labelledby={`toolkit-${toolkit.id}`}>
@@ -879,7 +881,7 @@ function FlowFooter({
   onPatch: (partial: Partial<FlowState>) => void;
 }) {
   const quoteExpired = Boolean(quote?.expired);
-  const spotBlocked = Boolean(quote?.spotBlocked);
+  const spotBlocked = Boolean(quote?.spotBlocked || quote?.outputBlocked);
   const quoteBlocked = quoteExpired || spotBlocked;
   if (state.step === "configure") {
     const ready = canAdvanceFromConfigure(box, state, quoteBlocked);
@@ -901,7 +903,7 @@ function FlowFooter({
         >
           {ready
             ? "REVIEW"
-            : quote?.spotBlocked && !quoteExpired
+            : (quote?.spotBlocked || quote?.outputBlocked) && !quoteExpired
               ? "SPOT READ REQUIRED"
               : quoteExpired
               ? QUOTE_EXPIRED_COPY
@@ -932,7 +934,7 @@ function FlowFooter({
           data-testid="confirm-in-wallet"
           disabled={quoteBlocked}
           onClick={() => {
-            if (quote?.spotBlocked && !quoteExpired) {
+            if ((quote?.spotBlocked || quote?.outputBlocked) && !quoteExpired) {
               onPatch({ notice: quote.label });
               return;
             }

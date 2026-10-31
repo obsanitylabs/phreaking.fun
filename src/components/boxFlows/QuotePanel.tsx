@@ -21,6 +21,7 @@ export function QuotePanel({ quote, onRefresh }: QuotePanelProps) {
       data-testid="quote-panel"
       data-expired={quote.expired ? "true" : "false"}
       data-spot-blocked={quote.spotBlocked ? "true" : "false"}
+      data-output-blocked={quote.outputBlocked ? "true" : "false"}
       data-spot-source={quote.spotSource}
       data-revision={quote.revision}
     >
@@ -32,6 +33,12 @@ export function QuotePanel({ quote, onRefresh }: QuotePanelProps) {
           <dt className="text-white/40">EST. RECEIVE</dt>
           <dd className="text-right text-white" data-testid="est-receive">
             {quote.estimatedReceive}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="sr-only">Output note</dt>
+          <dd className="text-right text-[10px] text-white/40" data-testid="output-note">
+            {quote.outputNote}
           </dd>
         </div>
         <div className="flex justify-between gap-3">

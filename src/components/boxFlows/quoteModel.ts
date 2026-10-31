@@ -18,6 +18,9 @@ export const QUOTE_UPDATED = "Quote updated";
 export const QUOTE_DEMO_LABEL = "Simulated route — no counterparty pool or GMX position.";
 export const SPOT_LIVE_LABEL = "Deposit value uses a Sepolia Chainlink spot read.";
 export const SPOT_BLOCKED_LABEL = "Sepolia spot read failed. Refresh quote to try again.";
+export const OUTPUT_VALUE_LABEL =
+  "Output value uses the same Sepolia Chainlink spot read. It is not a pool quote.";
+export const OUTPUT_VALUE_BLOCKED = "Output value needs a Sepolia spot read.";
 
 export const NETWORK_FEE_LINE = "0.0012 ETH + 5% premium, charged in the native gas token";
 export const PLATFORM_FEE_LINE = "5% of output (shown in the output token)";
@@ -48,6 +51,9 @@ export interface SimulatedQuote {
   spotNote: string;
   /** True when a token deposit cannot be priced from the live book. */
   spotBlocked: boolean;
+  /** True when the output value cannot be priced from the live book. */
+  outputBlocked: boolean;
+  outputNote: string;
 }
 
 export function formatQuoteClock(seconds: number): string {
@@ -128,31 +134,129 @@ export function quoteNeedsSpot(box: BoxDefinition, state: FlowState): boolean {
   });
 }
 
-export function estimatedReceive(box: BoxDefinition, state: FlowState): string {
+/**
+ * Boxes whose receive line is a known-output USD value, not a catalogue preview.
+ * Random, match, and position boxes stay labelled simulations.
+ */
+export function outputValueKind(box: BoxDefinition): "value" | "preview" {
+  if (box.id === "orange" || box.id === "white") return "value";
+  if (box.id === "purple") return "value";
+  if (box.flowKind === "mirror") return "value";
+  return "preview";
+}
+
+export function outputNeedsSpot(box: BoxDefinition, state: FlowState): boolean {
+  if (outputValueKind(box) !== "value") return false;
+  if (box.id === "purple" && purpleMode(state.toggles) === "nft-to-alt") return false;
+  return quoteNeedsSpot(box, state);
+}
+
+export interface OutputEstimate {
+  line: string;
+  blocked: boolean;
+  note: string;
+}
+
+/** Net of the displayed 5% output fee. This is a spot value, not a pool fill. */
+export const OUTPUT_FEE_RATE = 0.05;
+
+export function estimatedReceive(
+  box: BoxDefinition,
+  state: FlowState,
+  prices: Partial<Record<string, number>> = FALLBACK_TOKEN_PRICES,
+  spotReady = false,
+): OutputEstimate {
   if (box.flowKind === "random-swap" || box.flowKind === "random-box") {
-    return "??? — random output";
+    return {
+      line: "??? — random output",
+      blocked: false,
+      note: "Random output stays unknown. This is not a pool read.",
+    };
   }
+  if (box.id === "russian-flag") {
+    return {
+      line: "POSITION OPEN — demo, no GMX position",
+      blocked: false,
+      note: "Russian Flag does not open a GMX position on Sepolia.",
+    };
+  }
+  if (box.id === "checkered") {
+    return {
+      line: state.matchAccepted ? "Demo matched portfolio" : "Waiting for a demo match",
+      blocked: false,
+      note: "Checkered has no counterparty pool on Sepolia.",
+    };
+  }
+  if (box.assetMode === "wallet") {
+    return {
+      line: "Wallet sweep — preview inventory",
+      blocked: false,
+      note: "Sweep inventory is a labelled preview, not a wallet read.",
+    };
+  }
+  if (box.assetMode === "none") {
+    return {
+      line: `${state.machine} claw grab`,
+      blocked: false,
+      note: "Prize inventory is a labelled preview.",
+    };
+  }
+
+  const kind = outputValueKind(box);
+  const needs = outputNeedsSpot(box, state);
+  if (kind === "value" && needs && !spotReady) {
+    return { line: "Spot read required", blocked: true, note: OUTPUT_VALUE_BLOCKED };
+  }
+
+  const gross = depositUsd(box, state, prices);
+  const net = gross * (1 - OUTPUT_FEE_RATE);
   if (box.id === "purple") {
     const mode = purpleMode(state.toggles);
     if (mode === "nft-to-alt") {
-      return state.selectedNfts.length === 0
-        ? "Select NFTs to estimate"
-        : `~ ${formatUsd(nftFloorTotal(state.selectedNfts))} in altcoins`;
+      return {
+        line:
+          state.selectedNfts.length === 0
+            ? "Select NFTs to estimate"
+            : `~ ${formatUsd(nftFloorTotal(state.selectedNfts))} in altcoins`,
+        blocked: false,
+        note: "NFT floors are a labelled preview.",
+      };
     }
-    return `~ ${formatUsd(depositUsd(box, state, FALLBACK_TOKEN_PRICES))} in floor NFTs`;
+    return {
+      line: `~ ${formatUsd(net)} in floor NFTs`,
+      blocked: false,
+      note: OUTPUT_VALUE_LABEL,
+    };
   }
-  if (box.id === "russian-flag") {
-    return "POSITION OPEN — direction, entry, and a 24h countdown";
-  }
-  if (box.id === "checkered") {
-    return state.matchAccepted ? "Matched counterparty portfolio" : "Waiting for a demo match";
+  if (box.id === "orange") {
+    return {
+      line: `~ ${formatUsd(net)} in WBTC`,
+      blocked: false,
+      note: OUTPUT_VALUE_LABEL,
+    };
   }
   if (box.id === "white") {
-    return state.charityMode === "random" ? "Random charity donation" : "Chosen charity donation";
+    const charity = state.charityMode === "random" ? "a random charity" : "the chosen charity";
+    return {
+      line: `~ ${formatUsd(net)} donated as USDC to ${charity}`,
+      blocked: false,
+      note: OUTPUT_VALUE_LABEL,
+    };
   }
-  if (box.assetMode === "none") return `${state.machine} claw grab`;
+  if (box.flowKind === "mirror") {
+    return {
+      line: `~ ${formatUsd(net)} across the catalogue basket`,
+      blocked: false,
+      note: OUTPUT_VALUE_LABEL,
+    };
+  }
+
   const assets = box.demo.assets.map((asset) => `${asset.amount} ${asset.symbol}`).join(" + ");
-  return assets ? `~ ${assets}` : "No estimate";
+  return {
+    line: assets ? `Catalogue preview · ~ ${assets}` : "No estimate",
+    blocked: false,
+    note: "Output amount is a catalogue preview, not a live pool read.",
+  };
 }
 
 export function buildSimulatedQuote(
@@ -171,16 +275,20 @@ export function buildSimulatedQuote(
   const prices = source === "chainlink" ? { USDC: 1, ...spot?.prices } : FALLBACK_TOKEN_PRICES;
   const needsSpot = quoteNeedsSpot(box, state);
   const priced = tokenDepositUsd(state, prices);
-  const spotBlocked = needsSpot && (source !== "chainlink" || priced.missing.length > 0);
-  const label = spotBlocked
+  const spotReady = source === "chainlink" && priced.missing.length === 0;
+  const spotBlocked = needsSpot && !spotReady;
+  const output = estimatedReceive(box, state, prices, spotReady && !spotBlocked);
+  const label = spotBlocked || output.blocked
     ? SPOT_BLOCKED_LABEL
-    : source === "chainlink" && needsSpot
-      ? SPOT_LIVE_LABEL
+    : source === "chainlink" && (needsSpot || outputNeedsSpot(box, state))
+      ? output.note === OUTPUT_VALUE_LABEL
+        ? OUTPUT_VALUE_LABEL
+        : SPOT_LIVE_LABEL
       : QUOTE_DEMO_LABEL;
   return {
     revision: state.quoteRevision,
     remainingSeconds,
-    estimatedReceive: estimatedReceive(box, state),
+    estimatedReceive: output.line,
     depositUsd: spotBlocked ? "Spot read required" : formatUsd(depositUsd(box, state, prices)),
     route: quoteRoute(box, state.toggles),
     networkFee: box.flowKind === "gatcha" ? GATCHA_FEE_LINE : NETWORK_FEE_LINE,
@@ -192,6 +300,8 @@ export function buildSimulatedQuote(
     spotSource: source,
     spotNote: spot?.note ?? label,
     spotBlocked,
+    outputBlocked: output.blocked,
+    outputNote: output.note,
   };
 }
 

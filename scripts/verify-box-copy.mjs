@@ -119,6 +119,9 @@ const quoteModel = readFileSync(join(root, "src/components/boxFlows/quoteModel.t
 assert.ok(quotePanel.includes('data-testid="refresh-quote"'));
 assert.ok(quoteModel.includes("Simulated route — no counterparty pool or GMX position."));
 assert.ok(quoteModel.includes("Deposit value uses a Sepolia Chainlink spot read."));
+assert.ok(quoteModel.includes("Output value uses the same Sepolia Chainlink spot read. It is not a pool quote."));
+assert.ok(quotePanel.includes('data-testid="output-note"'));
+assert.ok(quoteModel.includes("outputBlocked"));
 assert.ok(quoteModel.includes("QUOTE_TTL_SECONDS = 60"));
 assert.ok(quoteModel.includes("QUOTE_WARNING_SECONDS = 30"));
 assert.ok(app.includes("quoteExpired"));
