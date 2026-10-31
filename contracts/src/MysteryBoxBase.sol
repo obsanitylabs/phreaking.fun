@@ -107,9 +107,10 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
 
     function setExecutor(address newExecutor) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(newExecutor != address(0), "MysteryBoxBase: zero executor");
-        IBoxExecutor old = executor;
         executor = IBoxExecutor(newExecutor); // effects before any use (CEI)
-        emit ExecutorChanged(address(old));
+        // Emit the executor now in force (the previous value was emitted here by mistake, so indexers and
+        // operators could never learn the configured address from logs).
+        emit ExecutorChanged(newExecutor);
     }
 
     function setTotalValueAtRiskCap(uint256 newCap) external onlyRole(DEFAULT_ADMIN_ROLE) {

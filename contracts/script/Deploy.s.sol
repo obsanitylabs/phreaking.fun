@@ -34,11 +34,25 @@ import {ReferralRegistry} from "../src/ReferralRegistry.sol";
 ///          - MULTISIG is the final DEFAULT_ADMIN_ROLE holder (2-of-3 recommended per deployment package):
 ///            every contract's admin role is transferred to it at the end, then the EOA renounces.
 ///          - GUARDIAN (on-call guardian multisig) gets one-tx pause on every pausable contract immediately.
+///          - EXECUTOR receives the box executor role on all 17 variants in this broadcast. Without it a fresh
+///            deployment reverts on every deposit ("<Box>: executor not set"), so it is a REQUIRED env value.
 ///          - Caps applied from CFO-signed env values (USD 1e8); if unset they are left at 0 (= unlimited) and
 ///            MUST be set before launch — logged loudly below.
 /// @dev    Run: forge script script/Deploy.s.sol --rpc-url <sepolia-rpc> --broadcast --private-key $DEPLOY_KEY
-///         Required env: ADMIN (signer address == deployer key's address), MULTISIG, GUARDIAN.
-///         Optional env: VAR_CAP_USD / TX_CAP_USD / WALLET_CAP_USD (USD 1e8 integers), REFERRAL_MAX_SUPPLY.
+///         Required env: ADMIN (signer address == deployer key's address), MULTISIG, GUARDIAN, EXECUTOR.
+///         Optional env: VAR_CAP_USD / TX_CAP_USD / WALLET_CAP_USD (USD 1e8 integers),
+///                       REFERRAL_MAX_SUPPLY, ETH_PRICE_USD.
+///
+///         EXECUTOR trust model (see src/interfaces/IBoxExecutor.sol and docs/SEPOLIA-ATTACK-SIM.md):
+///          - The executor is a TRUSTED off-chain actor. It is invoked last in each deposit's CEI sequence and
+///            receives the user's deposit (native via `execute{value: amount}`, ERC20 via the exact per-deposit
+///            allowance the box sets immediately before the call and resets to zero immediately after).
+///          - It MUST be a contract that can accept native ETH on the `execute` path: the box forwards the
+///            deposit's msg.value, so an executor without a payable entry point would revert native deposits.
+///          - It MUST pull the ERC20 allowance and settle to `user` atomically, returning the non-zero output
+///            token address; every variant reverts on a zero output so a silent no-op cannot strand funds.
+///          - It is NOT a fund custodian: it never holds balances between transactions and grants no roles.
+///          - Rotating it later is a single multisig `setExecutor` call on each box (DEFAULT_ADMIN_ROLE).
 contract DeployPhreaking is Script {
     /// @notice Known Polygon Sepolia tokens from src/constants/currencies.ts — registered on-chain here so the
     ///         registry has correct decimals before pool configuration. Pool membership itself is an admin
@@ -54,7 +68,10 @@ contract DeployPhreaking is Script {
         address admin    = vm.envAddress("ADMIN");   // signer of this broadcast == deployer EOA.
         address multisig = vm.envAddress("MULTISIG"); // final DEFAULT_ADMIN_ROLE holder (2-of-3).
         address guardian = vm.envAddress("GUARDIAN"); // on-call emergency pause role.
+        address executor = vm.envAddress("EXECUTOR"); // trusted off-chain settlement actor (see NatSpec above).
         require(admin != multisig, "DeployPhreaking: ADMIN and MULTISIG must differ");
+        require(executor != address(0), "DeployPhreaking: EXECUTOR must be set");
+        require(executor != admin && executor != multisig && executor != guardian, "DeployPhreaking: EXECUTOR must be a distinct contract");
 
         uint256 varCap = _optionalEnvUint(vm, "VAR_CAP_USD");
         uint256 txCap  = _optionalEnvUint(vm, "TX_CAP_USD");
@@ -64,6 +81,7 @@ contract DeployPhreaking is Script {
         console.log("admin:    ", admin);
         console.log("multisig: ", multisig);
         console.log("guardian: ", guardian);
+        console.log("executor: ", executor);
         if (varCap == 0 || txCap == 0 || walCap == 0) {
             console.log("WARNING: one or more caps unset - contracts deploy with cap = 0 (unlimited). Set them before launch.");
         } else {
@@ -152,6 +170,28 @@ contract DeployPhreaking is Script {
         rf.grantRole(rf.GUARDIAN_ROLE(), guardian);
         cg.grantRole(cg.GUARDIAN_ROLE(), guardian);
         referralRegistry.grantRole(referralRegistry.GUARDIAN_ROLE(), guardian);
+
+        // Box executor wiring: every variant reverts on deposit until an executor is set. Set it here (while the
+        // deployer still holds DEFAULT_ADMIN_ROLE) so a freshly deployed fleet is deposit-ready. EXECUTOR is a
+        // distinct contract that forwards/settles atomically and accepts native value on `execute` (see NatSpec).
+        mystery.setExecutor(executor);
+        red.setExecutor(executor);
+        blue.setExecutor(executor);
+        green.setExecutor(executor);
+        white.setExecutor(executor);
+        orange.setExecutor(executor);
+        yellow.setExecutor(executor);
+        pink.setExecutor(executor);
+        purple.setExecutor(executor);
+        rainbow.setExecutor(executor);
+        black.setExecutor(executor);
+        check.setExecutor(executor);
+        silver.setExecutor(executor);
+        gold.setExecutor(executor);
+        diamond.setExecutor(executor);
+        rf.setExecutor(executor);
+        cg.setExecutor(executor);
+        console.log("executor wired on all 17 boxes:", executor);
 
         // Caps at deploy time (CFO-signed values; 0 = skip, must be set before launch).
         if (varCap != 0 || txCap != 0 || walCap != 0) {
