@@ -73,4 +73,7 @@ async function archiveConsent(context, rec) {
   });
 }
 
-export const config = { path: '/api/waitlist/purge', schedule: '0 3 * * *' };
+// A Netlify function cannot declare both a custom path and a schedule; the
+// deploy fails validation if it does. This is the scheduled retention purge, so
+// it keeps only the schedule (no HTTP path).
+export const config = { schedule: '0 3 * * *' };
