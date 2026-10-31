@@ -38,8 +38,12 @@ import {ReferralRegistry} from "../src/ReferralRegistry.sol";
 ///          - KEEPER_A / KEEPER_B are the two independent oracle quote keepers (one per price source).
 ///          - EXECUTOR receives the box executor role on all 17 variants in this broadcast. Without it a fresh
 ///            deployment reverts on every deposit ("<Box>: executor not set"), so it is a REQUIRED env value.
-///          - Caps applied from CFO-signed env values (USD 1e8); if unset they are left at 0 (= unlimited) and
-///            MUST be set before launch — logged loudly below.
+    ///          - Caps applied from CFO-signed env values (USD 1e8); if unset they are left at 0 (= unlimited) and
+    ///            MUST be set before launch — logged loudly below.
+    ///          - Chain-id guard (OBS-320): on any chain other than Sepolia (11155111) the deploy HARD-FAILS if
+    ///            any of VAR_CAP_USD / TX_CAP_USD / WALLET_CAP_USD is unset. On-chain a cap of 0 means UNLIMITED
+    ///            (MysteryBoxBase._checkDepositCaps skips zero caps), so an unset cap on mainnet would deploy an
+    ///            unbounded fleet. Sepolia keeps the warn-but-proceed behaviour for test deploys.
 /// @dev    Run: forge script script/Deploy.s.sol --rpc-url <sepolia-rpc> --broadcast --private-key $DEPLOY_KEY
 ///         Required env: ADMIN (signer address == deployer key's address), MULTISIG, GUARDIAN, EXECUTOR, KEEPER_A, KEEPER_B.
 ///         Optional env: VAR_CAP_USD / TX_CAP_USD / WALLET_CAP_USD (USD 1e8 integers),
@@ -82,7 +86,19 @@ contract DeployPhreaking is Script {
         uint256 txCap  = _optionalEnvUint(vm, "TX_CAP_USD");
         uint256 walCap = _optionalEnvUint(vm, "WALLET_CAP_USD");
 
+        // ---- OBS-320 chain-id guard: never deploy an unbounded fleet off-Sepolia -------------------
+        // A cap of 0 means UNLIMITED on-chain (MysteryBoxBase._checkDepositCaps skips zero caps), so a
+        // non-Sepolia (e.g. mainnet) deploy with any cap unset would ship an unbounded fleet. Sepolia
+        // (11155111) keeps the warn-but-proceed behaviour below for test deployments.
+        uint256 chainId = block.chainid;
+        bool onSepolia = chainId == 11155111;
+        require(
+            onSepolia || (varCap != 0 && txCap != 0 && walCap != 0),
+            "DEPLOY ABORT: non-Sepolia deploy with cap(s) unset - cap 0 = UNLIMITED on-chain; set VAR_CAP_USD / TX_CAP_USD / WALLET_CAP_USD"
+        );
+
         console.log("=== phreaking.fun deployment (OBS-129) ===");
+        console.log("chainId:  ", chainId);
         console.log("admin:    ", admin);
         console.log("multisig: ", multisig);
         console.log("guardian: ", guardian);
