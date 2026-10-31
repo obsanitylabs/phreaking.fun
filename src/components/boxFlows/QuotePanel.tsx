@@ -1,7 +1,7 @@
 "use client";
 
 import type { SimulatedQuote } from "./quoteModel";
-import { formatQuoteClock, QUOTE_DEMO_LABEL, QUOTE_EXPIRED_COPY, QUOTE_EXPIRES_SOON, REFRESH_QUOTE_LABEL } from "./quoteModel";
+import { formatQuoteClock, QUOTE_EXPIRED_COPY, QUOTE_EXPIRES_SOON, REFRESH_QUOTE_LABEL } from "./quoteModel";
 
 interface QuotePanelProps {
   quote: SimulatedQuote;
@@ -20,10 +20,12 @@ export function QuotePanel({ quote, onRefresh }: QuotePanelProps) {
       className="border border-white/15 bg-white/[0.02] p-3 text-[11px]"
       data-testid="quote-panel"
       data-expired={quote.expired ? "true" : "false"}
+      data-spot-blocked={quote.spotBlocked ? "true" : "false"}
+      data-spot-source={quote.spotSource}
       data-revision={quote.revision}
     >
       <p className="text-[10px] uppercase tracking-widest text-terminal-orange" data-testid="quote-demo-label">
-        {QUOTE_DEMO_LABEL}
+        {quote.label}
       </p>
       <dl className="mt-2 space-y-1">
         <div className="flex justify-between gap-3">
@@ -34,7 +36,9 @@ export function QuotePanel({ quote, onRefresh }: QuotePanelProps) {
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-white/40">DEPOSIT VALUE</dt>
-          <dd className="text-right text-white">{quote.depositUsd}</dd>
+          <dd className="text-right text-white" data-testid="deposit-value">
+            {quote.depositUsd}
+          </dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-white/40">ROUTE</dt>
