@@ -73,4 +73,4 @@ async function archiveConsent(context, rec) {
   });
 }
 
-export const config = { path: '/api/waitlist/purge', schedule: '0 3 * * *' };
+export const config = { schedule: '0 3 * * *' };
