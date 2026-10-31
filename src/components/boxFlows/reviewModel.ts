@@ -162,3 +162,19 @@ export function reviewWarnings(box: BoxDefinition): string[] {
   }
   return merged;
 }
+
+export const SWEEP_VALUE_PREVIEW =
+  "Sweep value is a labelled inventory preview, not a wallet read.";
+
+/**
+ * Spec §6.7. Black prints the USD the user just reviewed on the NFT.
+ * A catalogue amount such as "$1,842.60" must not replace that quote.
+ * The preview never claims a broadcast happened.
+ */
+export function resultSweepValue(depositUsd: string | null | undefined): {
+  value: string;
+  note: string;
+} {
+  const value = depositUsd && depositUsd !== "Spot read required" ? depositUsd : "Sweep value unavailable";
+  return { value, note: SWEEP_VALUE_PREVIEW };
+}
