@@ -5,8 +5,9 @@ import fs from 'node:fs';
 
 const STORE_NAME = 'waitlist';
 
-function blobsAvailable() {
-  return !!(process.env.NETLIFY_BLOBS_CONTEXT || globalThis.__OBS_LOCAL_STORE__);
+// The local file shim is only used when explicitly requested (tests / local runs).
+function useLocalStore() {
+  return !!globalThis.__OBS_LOCAL_STORE__ || !!process.env.OBS_LOCAL_STORE_PATH;
 }
 
 // Local shim: single JSON file, loaded lazily, atomic-ish writes.
@@ -28,9 +29,13 @@ function saveLocal(data) {
 
 async function getStore(context) {
   const ctx = context || {};
-  if (!ctx.blobs && process.env.NETLIFY_BLOBS_URL) {
+  if (!ctx.blobs && !useLocalStore()) {
+    // In the Netlify runtime @netlify/blobs resolves its context automatically
+    // (same pattern as netlify/functions/collect.mjs). The previous code gated on
+    // NETLIFY_BLOBS_URL, which is not set at runtime, so it fell back to the
+    // read-only filesystem shim and every write failed with EROFS.
     const { getStore: mk } = await import('@netlify/blobs');
-    ctx.blobs = mk({ name: STORE_NAME, context: process.env.NETLIFY_BLOBS_CONTEXT });
+    ctx.blobs = mk(STORE_NAME);
   }
   return ctx;
 }
@@ -63,8 +68,11 @@ export async function storeDelete(context, key) {
 export async function storeList(context, prefix) {
   const ctx = await getStore(context);
   if (ctx.blobs) {
+    // @netlify/blobs list() returns { blobs: [{ key, etag }] } (not an async
+    // iterable, and list entries carry no data), so fetch each value explicitly.
     const out = {};
-    for await (const entry of ctx.blobs.list({ prefix })) out[entry.key] = JSON.parse(entry.data ?? 'null');
+    const { blobs } = await ctx.blobs.list({ prefix });
+    for (const { key } of blobs) out[key] = JSON.parse((await ctx.blobs.get(key)) ?? 'null');
     return out;
   }
   const data = loadLocal();

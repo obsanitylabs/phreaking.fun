@@ -45,8 +45,8 @@ const handler = async (req, context) => {
   if (!b.consent) return json(null, 400, { error: 'consent_required' });
 
   // C3: hash of MASKED IP, rate-limit keys only, purged after 72h by the scheduler.
-  const clientIp = clientIp(req);
-  const iHash = ipHash(maskIp(clientIp));
+  const ipAddr = clientIp(req);
+  const iHash = ipHash(maskIp(ipAddr));
   const eHash = emailHash(email);
 
   const ipHit = await rateHit(context, `ip:${iHash}`, 10, 3600);

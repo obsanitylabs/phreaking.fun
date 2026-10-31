@@ -28,11 +28,11 @@ const handler = async (req, context) => {
     rows.push(CSV_COLUMNS.map((c) => csvCell(c === 'status' ? status : rec[c])).join(','));
   }
 
-  const clientIp = clientIp(req);
+  const ipAddr = clientIp(req);
   await storePut(context, `accesslog:export:${dayKey(Date.now())}:${Math.random().toString(36).slice(2, 10)}`, {
     action: 'waitlist_export',
     scope: scope === '*' ? (want || 'all-products') : scope,
-    ip_hash: ipHash(maskIp(clientIp)), // short-lived masked hash, not exported
+    ip_hash: ipHash(maskIp(ipAddr)), // short-lived masked hash, not exported
     user_agent_family: uaFamily(header(req, 'user-agent')),
     row_count: rows.length,
     ts: new Date().toISOString(),
