@@ -73,6 +73,10 @@ With mainnet value-at-risk at **$0** and deposits disabled, **no make-whole outl
 - Primary admin (wallet address): `[NAMED ADMIN WALLET — board injection pending]` — **BLOCKING**.
 - Second admin (if the admin set has more than one member): `[NAMED ADMIN WALLET 2 — board injection pending]` — **BLOCKING**.
 - Paging: `[PAGING CHANNEL/TOOL]` — **BLOCKING**.
+- Unfreeze quorum: `[N-OF-M UNFREEZE QUORUM — or "single-admin exception confirmed" — board injection pending]` — **BLOCKING**.
+- 24/7 on-call commitment: `[ON-CALL COMMITMENT — acknowledge any page ≤ 10 min, one Sepolia pause drill per week — board injection pending]` — **BLOCKING**.
+
+All four fields above are supplied by the board in one injection. A partial injection is not a staffed control.
 
 **Injection-time preconditions** — the moment the admin set is populated, all of these must hold:
 1. CISO access-control sign-off on the dashboard pause/freeze control is in place and its stated minimum is met (OBS-375).
@@ -80,6 +84,7 @@ With mainnet value-at-risk at **$0** and deposits disabled, **no make-whole outl
 3. The paging tool escalates to a human, and the 24/7 on-call commitment (ack ≤ 10 minutes) is recorded.
 4. The **live** Sepolia pause drill below has been executed and its evidence recorded (OBS-129).
 5. This section and the dashboard admin config are updated with the injected values, and the stage-6 gate (OBS-294) is re-verified.
+6. **The admin set can be injected without a code change, a dashboard rebuild, or a dashboard redeploy.** The board's instruction is to inject the wallets *later and update*; if the admin set is build-time configuration — for example a `NEXT_PUBLIC_*` value, which Next.js inlines into the client bundle at build time — then injection would require a release and the commitment would not be honoured. The set must be resolvable at **runtime** (on-chain `GUARDIAN_ROLE` membership, or a server-side runtime store), so that adding an admin is a data write, not a deploy. A server-side read of a Netlify *environment variable* does not satisfy this: Netlify bakes env vars into the deploy. Verified on OBS-374; the bar and the mechanical test are recorded on OBS-381.
 
 Until then the emergency-pause control is **built but not staffed**, and the mainnet bounded launch is not authorised. Sepolia is unaffected.
 
