@@ -19,6 +19,8 @@ using SafeERC20 for IERC20;
 ///          - GUARDIAN_ROLE can pause in a single transaction (remediates OBS-128 M-4).
 ///          - Unpause is timelocked: guardian queues it, anyone releases after UNPAUSE_DELAY.
 ///          - No privileged path moves user funds; admin roles manage caps/pools/executor only.
+///          - Every deposit reaches the executor in the same tx: native value is forwarded, ERC20 uses an
+///            exact per-deposit allowance (pull model) reset immediately after dispatch (OBS-185).
 ///          - CEI order + SafeERC20 (via OZ) + ReentrancyGuard on all deposit paths.
 ///          - Bounded-launch caps: total value-at-risk, per-transaction and per-wallet, in USD 1e8 units.
 abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
@@ -77,7 +79,10 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
     }
 
     /// @notice Queue an unpause that becomes effective UNPAUSE_DELAY later (timelocked unpause invariant).
-    function queueUnpause() external onlyRole(GUARDIAN_ROLE) {
+    /// @dev    Only queueable while paused. Without `whenPaused`, a guardian could queue an unpause, a later
+    ///         emergency pause would not invalidate it, and anyone could lift that newer pause once the stale
+    ///         24h window elapsed. Scoping the queue to an active pause keeps the timelock anchored to it.
+    function queueUnpause() external onlyRole(GUARDIAN_ROLE) whenPaused {
         require(_unpauseQueuedAt == 0, "MysteryBoxBase: already queued");
         _unpauseQueuedAt = block.timestamp;
         emit UnpauseQueued(block.timestamp + UNPAUSE_DELAY);
@@ -102,9 +107,10 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
 
     function setExecutor(address newExecutor) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(newExecutor != address(0), "MysteryBoxBase: zero executor");
-        IBoxExecutor old = executor;
         executor = IBoxExecutor(newExecutor); // effects before any use (CEI)
-        emit ExecutorChanged(address(old));
+        // Emit the executor now in force (the previous value was emitted here by mistake, so indexers and
+        // operators could never learn the configured address from logs).
+        emit ExecutorChanged(newExecutor);
     }
 
     function setTotalValueAtRiskCap(uint256 newCap) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -129,9 +135,12 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
 
     /// @notice Deposit `amount` of whitelisted `tokenIn` and run this box's swap. NonReentrant + paused gate.
     ///         `tokenIn == address(0)` denotes native Ether (zero-address convention, OBS-128 H-1 donation
-    ///         path): msg.value must equal amount exactly. Bare transfers are intentionally NOT accepted —
-    ///         no catch-all receive() exists, so native ETH can never sit in the contract unattributed;
-    ///         every unit passes cap accounting and emits DepositReceived before delegation.
+    ///         path): msg.value must equal amount exactly and is forwarded to the executor with the call.
+    ///         ERC20 deposits use the PULL model: the box grants the executor an exact per-deposit allowance
+    ///         immediately before dispatch and resets it to zero immediately after, so no standing approval
+    ///         exists between deposits. Bare native transfers are intentionally NOT accepted — no catch-all
+    ///         receive() exists, so native ETH can never sit in the contract unattributed. Every unit passes
+    ///         cap accounting before delegation.
     function deposit(uint256 amount, address tokenIn) public payable nonReentrant whenNotPaused returns (address tokenOut) {
         require(amount > 0, "MysteryBoxBase: zero amount");
         _checkDepositCaps(msg.sender, tokenIn, amount);
@@ -144,10 +153,18 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
         if (tokenIn == address(0)) {
             require(msg.value == amount, "MysteryBoxBase: msg.value mismatch");
         } else {
+            // H-1a: ETH attached to an ERC20 deposit would be stranded exactly like the old deposits.
+            require(msg.value == 0, "MysteryBoxBase: msg.value must be zero");
             IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amount);
+            // Pull model: approve the exact deposit, then reset after the executor has pulled it.
+            IERC20(tokenIn).forceApprove(address(executor), amount);
         }
 
         tokenOut = _executeSwap(msg.sender, tokenIn, amount, value); // interaction last (CEI)
+
+        if (tokenIn != address(0)) {
+            IERC20(tokenIn).forceApprove(address(executor), 0);
+        }
     }
 
     /// @dev Enforce total value-at-risk, per-transaction and per-wallet caps (bounded-launch controls).
@@ -169,6 +186,17 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
     /// @dev Variants implement their swap rule and return the output token address. `valueUsd1e8` is the
     ///         deposit-time USD value passed so the executor can enforce slippage/criteria off-chain later.
     function _executeSwap(address user, address tokenIn, uint256 amount, uint256 valueUsd1e8) internal virtual returns (address tokenOut);
+
+    /// @dev Dispatch the deposit to the executor. Native deposits are forwarded as value; ERC20 deposits
+    ///         rely on the exact per-deposit allowance set (and later reset) by `deposit`.
+    function _dispatchToExecutor(address user, address tokenIn, uint256 amount, uint256 valueUsd1e8)
+        internal
+        returns (address tokenOut)
+    {
+        tokenOut = executor.execute{value: tokenIn == address(0) ? amount : 0}(
+            user, address(this), tokenIn, amount, valueUsd1e8
+        );
+    }
 
     /// @notice Cumulative deposited value across all users (USD 1e8). Monotonic by design.
     function totalValueAtRisk() external view returns (uint256) {

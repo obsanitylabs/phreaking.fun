@@ -40,6 +40,10 @@ contract TokenPricer is AccessControl, ITokenPricer {
     ///      donation paths must price native ETH alongside ERC20s); all other addresses are ERC20s.
     function setPrice(address token, uint256 priceUSDPerWhole, uint8 decimals_) external onlyRole(PRICER_ROLE) {
         require(decimals_ >= 1 && decimals_ <= 36, "TokenPricer: bad decimals");
+        // A zero whole-token price is never a legitimate quote: it prices the token at $0, which makes
+        // valueOf() return 0 and silently bypasses every USD cap (tx/VaR/wallet). Reject it so a bad keeper
+        // update reverts loudly instead of opening a cap bypass. Unset feeds already revert (unknown/stale).
+        require(priceUSDPerWhole != 0, "TokenPricer: zero price");
         // Bound before the uint80 cast so an oversized input reverts loudly instead of truncating silently.
         require(priceUSDPerWhole <= MAX_WHOLE_PRICE_1E8, "TokenPricer: price too large for uint80@1e8");
         _prices[token] = Price({decimals: decimals_, priceUSDPerWhole: uint80(priceUSDPerWhole), updatedAt: uint32(block.timestamp)});
@@ -67,6 +71,7 @@ contract TokenPricer is AccessControl, ITokenPricer {
     function priceOf(address token) external view returns (uint256 usdPerWhole1e8, uint8 decimals_) {
         Price storage p = _prices[token];
         require(p.decimals != 0, "TokenPricer: unknown token");
+        _requireFresh(token); // same freshness contract as price()/getUSDValue(); never serve stale reads
         usdPerWhole1e8 = uint256(p.priceUSDPerWhole);
         decimals_ = p.decimals;
     }

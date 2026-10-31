@@ -31,6 +31,9 @@ contract BoxTokenRegistry is AccessControl {
 
     /// @notice Register a token's decimals. Re-registers revert (use setActive for fixes).
     function registerToken(address token, uint8 decimals_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        // decimals == 0 is the "unregistered" sentinel used by canUse/decimalsOf; reject it so a token cannot
+        // be registered into a state that never becomes usable or that defeats the duplicate-register guard.
+        require(decimals_ != 0, "BoxTokenRegistry: zero decimals");
         require(info[token].decimals == 0 && !info[token].active, DuplicateToken());
         info[token] = TokenInfo(decimals_, true);
         emit TokenRegistered(token, decimals_);

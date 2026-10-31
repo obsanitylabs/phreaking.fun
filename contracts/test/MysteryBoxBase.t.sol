@@ -12,7 +12,40 @@ import {WhiteBox} from "../src/WhiteBox.sol";
 contract MockExecutor is IBoxExecutor {
     address public tokenOut;
     function setOutput(address _t) external { tokenOut = _t; }
-    function execute(address, address, address, uint256, uint256) external returns (address) { return tokenOut; }
+    function execute(address, address, address, uint256, uint256) external payable returns (address) { return tokenOut; }
+}
+
+/// @dev Executor that ACTUALLY settles: pulls ERC20 deposits from the box (pull model), accepts
+///      forwarded native value, and pays the depositor `amount` of `tokenOut`.
+contract SettlingMockExecutor is IBoxExecutor {
+    address public tokenOutToken;
+    uint256 public lastValue;
+    uint256 public lastAmount;
+    address public lastTokenIn;
+
+    function setOutput(address _t) external { tokenOutToken = _t; }
+
+    receive() external payable {}
+
+    function execute(address user, address boxType, address tokenIn, uint256 amount, uint256 valueUsd1e8)
+        external
+        payable
+        returns (address)
+    {
+        lastValue = msg.value;
+        lastAmount = amount;
+        lastTokenIn = tokenIn;
+
+        if (tokenIn == address(0)) {
+            require(msg.value == amount, "Settling: wrong native value");
+        } else {
+            require(msg.value == 0, "Settling: unexpected native value");
+            MockToken(tokenIn).transferFrom(boxType, address(this), amount);
+        }
+
+        MockToken(tokenOutToken).mint(user, amount);
+        return tokenOutToken;
+    }
 }
 
 contract MockToken {
@@ -25,9 +58,16 @@ contract MockToken {
     function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount; return true;
     }
+    function transfer(address to, uint256 value) external returns (bool) {
+        require(balanceOf[msg.sender] >= value, "insufficient balance");
+        balanceOf[msg.sender] -= value;
+        balanceOf[to] += value; return true;
+    }
     function transferFrom(address from, address to, uint256 value) external returns (bool) {
         require(allowance[from][msg.sender] >= value, "insufficient allowance");
+        require(balanceOf[from] >= value, "insufficient balance");
         allowance[from][msg.sender] -= value;
+        balanceOf[from] -= value;
         balanceOf[to] += value; return true;
     }
     function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
@@ -103,6 +143,14 @@ contract PauseUnpauseTest is MysteryBoxBaseTest {
         box.pause();
         vm.expectRevert("MysteryBoxBase: nothing queued");
         box.releaseUnpause();
+    }
+
+    function test_QueueUnpause_WhenNotPaused_Reverts() public {
+        // A queue created while unpaused could outlive a later emergency pause and auto-lift it; reject it.
+        vm.prank(guardian);
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("ExpectedPause()"))));
+        box.queueUnpause();
+        assertEq(box.unpauseReleaseAt(), 0);
     }
 
     bytes32 constant GUARDIAN_ROLE = keccak256("GUARDIAN");
@@ -318,5 +366,77 @@ contract NativeEtherDepositTest is MysteryBoxBaseTest {
         vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("EnforcedPause()"))));
         vm.prank(user);
         white.donate{value: 1 ether}(1 ether, address(0));
+    }
+}
+
+/// @dev OBS-185: deposits must actually reach the executor (pull model + native forwarding).
+contract DepositSettlementTest is Test {
+    BoxTokenRegistry registry;
+    TokenPricer pricer;
+    SettlingMockExecutor executor;
+    MysteryBox box;
+    MockToken tokenIn;
+    MockToken tokenOut;
+    address admin = address(0xAA);
+    address user = address(0xCC);
+
+    function setUp() external {
+        registry = new BoxTokenRegistry(admin);
+        pricer = new TokenPricer(admin);
+        executor = new SettlingMockExecutor();
+        box = new MysteryBox(registry, pricer, admin);
+        tokenIn = new MockToken();
+        tokenOut = new MockToken();
+        executor.setOutput(address(tokenOut));
+
+        vm.startPrank(admin);
+        box.setExecutor(address(executor));
+        registry.registerToken(address(tokenIn), 18);
+        registry.registerToken(address(0), 18);
+        registry.setPoolMembership(BoxTokenRegistry.BoxType.MYSTERY, address(tokenIn), true);
+        registry.setPoolMembership(BoxTokenRegistry.BoxType.MYSTERY, address(0), true);
+        pricer.setPrice(address(tokenIn), 2000 * 1e8, 18);
+        pricer.setPrice(address(0), 2000 * 1e8, 18);
+        vm.stopPrank();
+    }
+
+    function test_Erc20Deposit_ExecutorPullsFunds_NoStandingAllowance() public {
+        tokenIn.mint(user, 1 ether);
+        vm.startPrank(user);
+        tokenIn.approve(address(box), 1 ether);
+        address out = box.deposit(1 ether, address(tokenIn));
+        vm.stopPrank();
+
+        assertEq(out, address(tokenOut));
+        // Executor pulled the deposit; nothing stranded in the box.
+        assertEq(tokenIn.balanceOf(address(executor)), 1 ether);
+        assertEq(tokenIn.balanceOf(address(box)), 0);
+        // Approval is reset after dispatch: no standing allowance between deposits.
+        assertEq(tokenIn.allowance(address(box), address(executor)), 0);
+        // User was paid the settled output token.
+        assertEq(tokenOut.balanceOf(user), 1 ether);
+    }
+
+    function test_NativeDeposit_ForwardsValueToExecutor() public {
+        vm.deal(user, 2 ether);
+        vm.prank(user);
+        address out = box.deposit{value: 1 ether}(1 ether, address(0));
+
+        assertEq(out, address(tokenOut));
+        assertEq(executor.lastValue(), 1 ether);
+        assertEq(executor.lastAmount(), 1 ether);
+        assertEq(address(box).balance, 0);
+        assertEq(address(executor).balance, 1 ether);
+        assertEq(tokenOut.balanceOf(user), 1 ether);
+    }
+
+    function test_Erc20Deposit_WithMsgValue_Reverts() public {
+        tokenIn.mint(user, 1 ether);
+        vm.deal(user, 1 ether);
+        vm.startPrank(user);
+        tokenIn.approve(address(box), 1 ether);
+        vm.expectRevert("MysteryBoxBase: msg.value must be zero");
+        box.deposit{value: 1 ether}(1 ether, address(tokenIn));
+        vm.stopPrank();
     }
 }

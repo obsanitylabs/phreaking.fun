@@ -114,6 +114,12 @@ contract BoxTokenRegistryTest is Test {
         vm.stopPrank();
     }
 
+    function test_Register_ZeroDecimals_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("BoxTokenRegistry: zero decimals");
+        registry.registerToken(tokenX, 0);
+    }
+
     function test_Deactivate_Token() public {
         vm.startPrank(admin);
         registry.registerToken(tokenX, 18);

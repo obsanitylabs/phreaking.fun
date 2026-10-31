@@ -20,7 +20,7 @@ contract MysteryBox is MysteryBoxBase {
     function _executeSwap(address user, address tokenIn, uint256 amount, uint256 valueUsd1e8) internal override returns (address tokenOut) {
         require(address(executor) != address(0), "MysteryBox: executor not set");
         // Interaction last in the deposit CEI sequence.
-        tokenOut = executor.execute(user, address(this), tokenIn, amount, valueUsd1e8);
+        tokenOut = _dispatchToExecutor(user, tokenIn, amount, valueUsd1e8);
         require(tokenOut != address(0), "MysteryBox: no output token returned");
     }
 }
