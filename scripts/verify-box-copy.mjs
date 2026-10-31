@@ -110,5 +110,17 @@ assert.ok(copy.includes("demo simulator"));
 assert.ok(copy.includes("PnL < 2.4% → 13% · 2.4%–50% → 15% · > 50% → 22%."));
 assert.ok(flow.includes('box.id === "checkered"'));
 assert.ok(flow.includes("selectedNfts.length > 0"));
+assert.ok(copy.includes("Quote expires in 30s"));
+assert.ok(copy.includes("Refresh quote"));
+assert.ok(app.includes("QuotePanel"));
+assert.ok(app.includes("refresh-quote") === false);
+const quotePanel = readFileSync(join(root, "src/components/boxFlows/QuotePanel.tsx"), "utf8");
+const quoteModel = readFileSync(join(root, "src/components/boxFlows/quoteModel.ts"), "utf8");
+assert.ok(quotePanel.includes('data-testid="refresh-quote"'));
+assert.ok(quoteModel.includes("Simulated quote — no live pool or GMX read."));
+assert.ok(quoteModel.includes("QUOTE_TTL_SECONDS = 60"));
+assert.ok(quoteModel.includes("QUOTE_WARNING_SECONDS = 30"));
+assert.ok(app.includes("quoteExpired"));
+assert.ok(!app.includes("writeContract"));
 
-console.log("box copy snapshot ok: 15 boxes, Rainbow disclosure, White 14px panel, pause/cap reads, Purple/Checkered/Russian modules");
+console.log("box copy snapshot ok: 15 boxes, Rainbow disclosure, White 14px panel, pause/cap reads, modules, simulated quote");

@@ -13,7 +13,16 @@ import {
 } from "./copy";
 import { reviewDisclosure, reviewWarnings } from "./reviewModel";
 import { blockingCap, capReachedCopy, gateFromSnapshot, unpausePendingCopy } from "./boxStatusRead";
-import { canAdvanceFromConfigure, initialFlowState } from "./flowState";
+import { canAdvanceFromConfigure, canConfirmReview, initialFlowState } from "./flowState";
+import {
+  buildSimulatedQuote,
+  formatQuoteClock,
+  quoteIsExpired,
+  quoteNeedsWarning,
+  quoteRemaining,
+  quoteRoute,
+  QUOTE_TTL_SECONDS,
+} from "./quoteModel";
 import { toggleNftSelection } from "./moduleModel";
 import {
   CHECKERED_DEMO_LABEL,
@@ -208,6 +217,36 @@ test("Purple, Checkered, and Russian Flag modules gate review without a broadcas
   assert.equal(russian.irreversibleHeading, "THIS CANNOT BE UNDONE");
   assert.match(russian.positionNote ?? "", /24 hours/);
   assert.equal(BOX_BY_ID["russian-flag"].demo.eyebrow, "POSITION OPEN");
+});
+
+test("simulated quote expires at 60s and warns inside 30s", () => {
+  const issuedAt = 1_700_000_000_000;
+  assert.equal(QUOTE_TTL_SECONDS, 60);
+  assert.equal(quoteRemaining(issuedAt, issuedAt + 29_000), 31);
+  assert.equal(quoteNeedsWarning(31), false);
+  assert.equal(quoteRemaining(issuedAt, issuedAt + 30_000), 30);
+  assert.equal(quoteNeedsWarning(30), true);
+  assert.equal(quoteRemaining(issuedAt, issuedAt + 60_000), 0);
+  assert.equal(quoteIsExpired(0), true);
+  assert.equal(formatQuoteClock(47), "00:47");
+
+  const red = initialFlowState(BOX_BY_ID.red);
+  red.quoteIssuedAt = issuedAt;
+  const fresh = buildSimulatedQuote(BOX_BY_ID.red, red, issuedAt + 1_000);
+  assert.equal(fresh.expired, false);
+  assert.match(fresh.route, /native/i);
+  assert.match(fresh.networkFee, /5% premium/);
+  assert.match(fresh.platformFee, /5% of output/);
+  assert.match(fresh.label, /Simulated quote/);
+
+  const cross = {
+    ...red,
+    toggles: { ...red.toggles, route: "cross-chain" },
+  };
+  assert.match(quoteRoute(BOX_BY_ID.red, cross.toggles), /Axelar/);
+  assert.equal(canAdvanceFromConfigure(BOX_BY_ID.red, red, true), false);
+  assert.equal(canConfirmReview(BOX_BY_ID.red, { ...red, acknowledged: true }, true), false);
+  assert.equal(canAdvanceFromConfigure(BOX_BY_ID.red, red, false), true);
 });
 
 test("Red, Purple, and Rainbow one-liners use the spec em dash", () => {

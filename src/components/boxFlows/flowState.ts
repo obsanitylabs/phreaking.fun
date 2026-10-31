@@ -46,6 +46,9 @@ export interface FlowState {
   matchPhase: "escrow" | "waiting" | "matched";
   matchElapsed: number;
   matchAccepted: boolean;
+  /** Spec §5. Simulated quote clock. Editing inputs re-issues it. */
+  quoteIssuedAt: number;
+  quoteRevision: number;
 }
 
 export function defaultToggles(box: BoxDefinition): Record<string, string> {
@@ -78,6 +81,8 @@ export function initialFlowState(box: BoxDefinition): FlowState {
     matchPhase: "escrow",
     matchElapsed: 0,
     matchAccepted: false,
+    quoteIssuedAt: 0,
+    quoteRevision: 1,
   };
 }
 
@@ -116,7 +121,12 @@ export function stagesFor(box: BoxDefinition, toggles: Record<string, string>): 
   }
 }
 
-export function canAdvanceFromConfigure(box: BoxDefinition, state: FlowState): boolean {
+export function canAdvanceFromConfigure(
+  box: BoxDefinition,
+  state: FlowState,
+  quoteExpired = false,
+): boolean {
+  if (quoteExpired) return false;
   if (state.gate === "paused" || state.gate === "cap" || state.gate === "wrong-network") {
     return false;
   }
@@ -154,7 +164,12 @@ export function resultShowsTokenLinks(box: BoxDefinition): boolean {
   return Boolean(box.demo.coingecko || box.demo.dexscreener);
 }
 
-export function canConfirmReview(box: BoxDefinition, state: FlowState): boolean {
+export function canConfirmReview(
+  box: BoxDefinition,
+  state: FlowState,
+  quoteExpired = false,
+): boolean {
+  if (quoteExpired) return false;
   if (state.gate !== "none" && state.gate !== "locked") return false;
   if (box.requiresAcknowledgement && !state.acknowledged) return false;
   return true;

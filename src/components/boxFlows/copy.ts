@@ -100,3 +100,8 @@ export const RUSSIAN_RETURN_NOTE =
   "You will return to close the position after 24 hours.";
 
 export const IRREVERSIBLE_HEADING = "THIS CANNOT BE UNDONE";
+
+/** Spec §5 quote freshness. The clock is a labelled simulator, not a pool read. */
+export const QUOTE_EXPIRES_SOON = "Quote expires in 30s";
+export const QUOTE_EXPIRED_COPY = "Quote expired. Refresh quote to continue.";
+export const REFRESH_QUOTE_LABEL = "Refresh quote";
