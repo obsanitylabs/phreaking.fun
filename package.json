@@ -9,7 +9,9 @@
     "lint": "next lint",
     "lint:fix": "eslint --fix .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test:box-copy": "node scripts/verify-box-copy.mjs"
   },
   "dependencies": {
     "@radix-ui/react-scroll-area": "^1.2.9",
@@ -51,6 +53,7 @@
     "eslint-plugin-prettier": "^5.4.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
-    "prettier": "^3.5.3"
+    "prettier": "^3.5.3",
+    "tsx": "^4.20.6"
   }
 }

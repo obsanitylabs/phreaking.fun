@@ -1,6 +1,7 @@
 /**
- * Pins trust-critical box UX copy to spec v1.1 without a test runner.
- * Fails the process if Rainbow disclosure or the White verbatim string drifts.
+ * Text-grep snapshot of trust-critical box UX copy (spec v1.1).
+ * Run with `npm run test:box-copy`. Behavioral assertions live in
+ * src/components/boxFlows/copy.test.ts and run with `npm test`.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
