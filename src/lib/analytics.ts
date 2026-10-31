@@ -137,19 +137,14 @@ export function trackBoxConfigured(chainId: number | undefined): void {
   });
 }
 
-export function trackPurchaseSubmitted(chainId: number | undefined): void {
-  emit("funnel_step", {
-    funnel_name: "pff_purchase",
-    step_index: 2,
-    step_name: "purchase_submitted",
-    chain_id: chainId ?? SEPOLIA_CHAIN_ID,
-  });
-}
-
+// `funnel_step` funnel_name=pff_purchase — step 2: a purchase confirmed on-chain
+// (OBS-307 metric-dictionary v2.1 §4.4). Emitted ONLY from a genuine on-chain
+// confirmation (a confirmed transaction receipt) — never from the box-open UI edge,
+// which re-fires on reopen/restake without a purchase (OBS-365 finding 3.2 / OBS-491).
 export function trackPurchaseConfirmed(chainId: number | undefined): void {
   emit("funnel_step", {
     funnel_name: "pff_purchase",
-    step_index: 3,
+    step_index: 2,
     step_name: "purchase_confirmed",
     chain_id: chainId ?? SEPOLIA_CHAIN_ID,
   });

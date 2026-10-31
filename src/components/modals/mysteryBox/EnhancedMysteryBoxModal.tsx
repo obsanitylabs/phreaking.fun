@@ -238,11 +238,25 @@ const EnhancedMysteryBoxModal: React.FC<EnhancedMysteryBoxModalProps> = ({
   const wasFinishedRef = useRef(false);
   useEffect(() => {
     if (isFinished && !wasFinishedRef.current) {
-      trackPurchaseConfirmed(chainId);
       trackBoxOpenedWithActivation(boxType, `${boxType}_box_home_modal`);
     }
     wasFinishedRef.current = isFinished;
-  }, [isFinished, chainId, boxType]);
+  }, [isFinished, boxType]);
+
+  // OBS-491 — `purchase_confirmed` (funnel step 2) fires only on a genuine on-chain
+  // purchase confirmation, never on the box-open UI edge. For the White Box the purchase
+  // settles via the donation tx, so gate on the confirmed receipt.
+  const purchaseConfirmedRef = useRef(false);
+  useEffect(() => {
+    if (
+      boxType === "white" &&
+      whiteBoxTransactionSuccess &&
+      !purchaseConfirmedRef.current
+    ) {
+      purchaseConfirmedRef.current = true;
+      trackPurchaseConfirmed(chainId);
+    }
+  }, [boxType, whiteBoxTransactionSuccess, chainId]);
 
   console.log('🔍 Modal State Debug:', {
     flowStep: flowState.currentStep,

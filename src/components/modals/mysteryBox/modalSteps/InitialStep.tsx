@@ -12,7 +12,7 @@ import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
   trackBoxConfigured,
-  trackPurchaseSubmitted,
+  trackPurchaseConfirmed,
 } from "@/lib/analytics";
 
 interface InitialStepProps {
@@ -294,9 +294,6 @@ const InitialStep: React.FC<InitialStepProps> = ({
         
         const boxId = getBoxId(boxType);
         
-        // OBS-354 — purchase submitted (campaign funnel progression).
-        trackPurchaseSubmitted(chainId);
-
         const result = await buyMysteryBox(
           boxId,
           purchaseAmounts.filter((_, index) => selectedTokens[index] !== "None"),
@@ -306,6 +303,9 @@ const InitialStep: React.FC<InitialStepProps> = ({
         if (result.receipt?.transactionHash) {
           setTransactionHash(result.receipt.transactionHash);
           finishProcessing(result.rewards || []);
+          // OBS-491 — purchase confirmed: only after the on-chain receipt for this
+          // purchase (never on the box-open UI edge).
+          trackPurchaseConfirmed(chainId);
         } else {
           throw new Error(result.message || "Transaction failed");
         }
