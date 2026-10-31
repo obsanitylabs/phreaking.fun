@@ -28,7 +28,7 @@ Branch: `build-day-boxes`. No mainnet deployment, no keys — Sepolia/local test
 | `src/ReferralToken.sol` | Dummy referral token (Polygon) | one-pager §1 "Referrals", decision h | ERC-20, 18 decimals, immutable maxSupply backstop; MINTER_ROLE-only mint/burn |
 | `src/ReferralRegistry.sol` | Referral registry + free Red Box swap redemption | one-pager §1 "Referrals" | referee self-registers once → uplink credited 1 whole token (1:1 MATIC peg); pull-only redemption burns the token and emits `FreeSwapGranted` for off-chain settlement; guardian pause/timelocked unpause same as base |
 | `src/BoxTokenRegistry.sol` | Per-box token pools + decimals + activation | decision 4 (`BoxRegistry`) | admin-managed configuration, no fund-movement surface |
-| `src/TokenPricer.sol` | Whole-token USD price feed (1e8) | decision 4 (`OracleAdapter`) | seconds-based freshness window; non-upgradeable for build day (UUPS later) |
+| `src/TokenPricer.sol` | Redundant USD price feed (1e8) | decision 4 (`OracleAdapter`) | accepts a quote only when two immutable sources agree within 1% and both are <1h old; publishes the higher quote |
 | `src/interfaces/IBoxExecutor.sol` | Trusted off-chain executor interface | decision 3/5 | all DEX routing, bridging (Axelar/Synapse), VRF, Secret/Monero paths settle here — stubbed today |
 | `src/interfaces/IBox.sol`, `IERC20.sol`, `ITokenPricer.sol` | Supporting interfaces | — | local declarations matching deployed ABI conventions |
 
@@ -57,6 +57,7 @@ that transfers every `DEFAULT_ADMIN_ROLE` to the multisig and renounces the depl
 
 ```shell
 ADMIN=<deployer-EOA-address> MULTISIG=<2of3-multisig> GUARDIAN=<on-call-guardian> \
+KEEPER_A=<oracle-operator-a> KEEPER_B=<oracle-operator-b> \
 VAR_CAP_USD=<usd1e8> TX_CAP_USD=<usd1e8> WALLET_CAP_USD=<usd1e8> REFERRAL_MAX_SUPPLY=<optional-wei> \
 forge script script/Deploy.s.sol --rpc-url <sepolia-rpc> --broadcast --private-key $DEPLOY_KEY
 ```
@@ -72,8 +73,9 @@ $ forge test    # 49 passed / 0 failed across 10 suites
 ```
 
 Covers: pause-in-one-tx, timelocked unpause, tx/total-VaR/wallet caps, role gating (OZ v5 custom errors), CEI
-deposit flow with mock executor, price freshness/staleness + truncation guard, registry pool membership and
-deactivation, referral registration/reward caps/supply cap/redemption burn/pause controls, plus the fleet-wide
+deposit flow with mock executor, redundant price agreement (1% band, both sources fresh) + truncation guard,
+registry pool membership and deactivation, referral registration/reward caps/supply cap/redemption burn/pause
+controls, plus the fleet-wide
 emergency-stop drill (`FleetDrill.t.sol`): guardian sweeps a one-tx pause over all 17 boxes + referral registry,
 deposit blocked while paused, non-guardian cannot touch pause/unpause, timelocked recovery after 24h.
 

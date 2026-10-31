@@ -38,6 +38,7 @@ contract ReferralRegistry is AccessControl, Pausable, ReentrancyGuard {
     event MaxRewardsPerReferrerChanged(uint256 oldCap, uint256 newCap);
     event UnpauseQueued(uint256 releaseAt);
     event UnpauseReleased(uint256 queuedAt);
+    event UnpauseCancelled(uint256 queuedAt);
 
     /// @param _rewardToken The ReferralToken contract (immutable). Deployer must grant it MINTER_ROLE here.
     /// @param _admin Initial DEFAULT_ADMIN_ROLE holder (deployer multisig).
@@ -80,7 +81,8 @@ contract ReferralRegistry is AccessControl, Pausable, ReentrancyGuard {
         require(bal >= REWARD_PER_REFERRAL, "ReferralRegistry: no referral tokens to redeem");
 
         // Effects before interaction (CEI): burn the reward first so a revert in settlement cannot double-spend.
-        rewardToken.burnByMinter(msg.sender, REWARD_PER_REFERRAL);
+        // Allowance is required so a transferred reward cannot be burned out from under its holder.
+        rewardToken.burnFrom(msg.sender, REWARD_PER_REFERRAL);
 
         emit FreeSwapGranted(msg.sender, tokenOut);
     }
@@ -102,8 +104,11 @@ contract ReferralRegistry is AccessControl, Pausable, ReentrancyGuard {
     // ---- guardian pause controls (mirrors MysteryBoxBase) -------------------------
 
     /// @notice Pause all referral/redemption activity immediately. Callable by any GUARDIAN_ROLE in one tx.
+    ///         Also cancels a queued unpause so a later incident cannot be lifted by a stale timer.
+    ///         Re-pausing while already paused is allowed: that is how a guardian invalidates a pending lift.
     function pause() external onlyRole(GUARDIAN_ROLE) {
-        _pause();
+        _cancelQueuedUnpause();
+        if (!paused()) _pause();
     }
 
     /// @notice Queue an unpause effective UNPAUSE_DELAY later (timelocked unpause invariant).
@@ -125,5 +130,13 @@ contract ReferralRegistry is AccessControl, Pausable, ReentrancyGuard {
 
     function unpauseReleaseAt() external view returns (uint256) {
         return _unpauseQueuedAt == 0 ? 0 : _unpauseQueuedAt + UNPAUSE_DELAY;
+    }
+
+    /// @dev Drop a pending unpause so releaseUnpause cannot fire against a newer pause.
+    function _cancelQueuedUnpause() internal {
+        uint256 queuedAt = _unpauseQueuedAt;
+        if (queuedAt == 0) return;
+        _unpauseQueuedAt = 0;
+        emit UnpauseCancelled(queuedAt);
     }
 }

@@ -7,6 +7,7 @@ import {Vm} from "forge-std/Vm.sol";
 
 import {BoxTokenRegistry} from "../src/BoxTokenRegistry.sol";
 import {TokenPricer} from "../src/TokenPricer.sol";
+import {RolePriceSource} from "../src/RolePriceSource.sol";
 import {MysteryBox} from "../src/MysteryBox.sol";
 import {RedBox} from "../src/RedBox.sol";
 import {BlueBox} from "../src/BlueBox.sol";
@@ -37,7 +38,7 @@ import {ReferralRegistry} from "../src/ReferralRegistry.sol";
 ///          - Caps applied from CFO-signed env values (USD 1e8); if unset they are left at 0 (= unlimited) and
 ///            MUST be set before launch — logged loudly below.
 /// @dev    Run: forge script script/Deploy.s.sol --rpc-url <sepolia-rpc> --broadcast --private-key $DEPLOY_KEY
-///         Required env: ADMIN (signer address == deployer key's address), MULTISIG, GUARDIAN.
+///         Required env: ADMIN (signer address == deployer key's address), MULTISIG, GUARDIAN, KEEPER_A, KEEPER_B.
 ///         Optional env: VAR_CAP_USD / TX_CAP_USD / WALLET_CAP_USD (USD 1e8 integers), REFERRAL_MAX_SUPPLY.
 contract DeployPhreaking is Script {
     /// @notice Known Polygon Sepolia tokens from src/constants/currencies.ts — registered on-chain here so the
@@ -78,8 +79,23 @@ contract DeployPhreaking is Script {
         BoxTokenRegistry registry = new BoxTokenRegistry(admin);
         console.log("BoxTokenRegistry: ", address(registry));
 
-        TokenPricer pricer = new TokenPricer(admin);
+        // Two sources, two keepers. A quote is accepted only when both agree within 1%.
+        // KEEPER_A and KEEPER_B must be different operators (or one later swapped for a Chainlink adapter).
+        address keeperA = vm.envAddress("KEEPER_A");
+        address keeperB = vm.envAddress("KEEPER_B");
+        require(keeperA != keeperB, "DeployPhreaking: keepers must differ");
+        RolePriceSource primary = new RolePriceSource(admin);
+        RolePriceSource secondary = new RolePriceSource(admin);
+        TokenPricer pricer = new TokenPricer(admin, primary, secondary);
+        primary.grantRole(primary.KEEPER_ROLE(), keeperA);
+        secondary.grantRole(secondary.KEEPER_ROLE(), keeperB);
+        // Temporary, so the deployer can seed the launch quote on both sources in this broadcast.
+        // Revoked before admin handoff. Ongoing quotes require the two keepers independently.
+        primary.grantRole(primary.KEEPER_ROLE(), admin);
+        secondary.grantRole(secondary.KEEPER_ROLE(), admin);
         console.log("TokenPricer:      ", address(pricer));
+        console.log("PriceSource A:    ", address(primary));
+        console.log("PriceSource B:    ", address(secondary));
 
         // ---- 17 box variants ---------------------------------------------------------
         MysteryBox mystery   = new MysteryBox(registry, pricer, admin);
@@ -179,20 +195,26 @@ contract DeployPhreaking is Script {
         registry.registerToken(SEPOLIA_LINK,   18);
 
         // Native Ether (zero-address convention; OBS-128 H-1 donation-path support). Optional USD seed at
-        // deploy time — the price keeper/PRICER_ROLE must refresh it within the 1h freshness heartbeat.
+        // deploy time — both keepers must refresh it within the 1h freshness heartbeat.
         registry.registerToken(address(0), 18);
         uint256 ethPriceSeed = _optionalEnvUint(vm, "ETH_PRICE_USD"); // whole-ETH USD at 1e8
         if (ethPriceSeed != 0) {
-            pricer.setPrice(address(0), ethPriceSeed, 18);
+            primary.setQuote(address(0), ethPriceSeed, 18);
+            secondary.setQuote(address(0), ethPriceSeed, 18);
             console.log("native Ether seeded at USD:", ethPriceSeed);
         } else {
-            console.log("NOTE: native Ether price not seeded - set via PRICER_ROLE before launch.");
+            console.log("NOTE: native Ether price not seeded - both keepers must quote before launch.");
         }
+        primary.revokeRole(primary.KEEPER_ROLE(), admin);
+        secondary.revokeRole(secondary.KEEPER_ROLE(), admin);
 
 
         // ---- hand every DEFAULT_ADMIN_ROLE to the multisig; EOA renounces all ----------
-        // Price-keeper authority transfers BEFORE the admin handoff (granting needs admin rights).
-        pricer.grantRole(pricer.PRICER_ROLE(), multisig); // production = Chainlink wiring per box-specs §13.
+        // Source admin transfers BEFORE the pricer handoff (granting needs admin rights).
+        primary.grantRole(primary.DEFAULT_ADMIN_ROLE(), multisig);
+        secondary.grantRole(secondary.DEFAULT_ADMIN_ROLE(), multisig);
+        primary.renounceRole(primary.DEFAULT_ADMIN_ROLE(), admin);
+        secondary.renounceRole(secondary.DEFAULT_ADMIN_ROLE(), admin);
         registry.grantRole(DEFAULT_ADMIN_ROLE, multisig);            registry.renounceRole(DEFAULT_ADMIN_ROLE, admin);
         pricer.grantRole(DEFAULT_ADMIN_ROLE, multisig);              pricer.renounceRole(DEFAULT_ADMIN_ROLE, admin);
         mystery.grantRole(DEFAULT_ADMIN_ROLE, multisig);             mystery.renounceRole(DEFAULT_ADMIN_ROLE, admin);

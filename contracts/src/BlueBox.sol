@@ -20,7 +20,7 @@ contract BlueBox is MysteryBoxBase {
     function _executeSwap(address user, address tokenIn, uint256 amount, uint256 valueUsd1e8) internal override returns (address tokenOut) {
         require(address(executor) != address(0), "BlueBox: executor not set");
         // Interaction last in the deposit CEI sequence; slippage bound applied off-chain by the executor.
-        tokenOut = executor.execute(user, address(this), tokenIn, amount, valueUsd1e8);
+        tokenOut = executor.execute{value: tokenIn == address(0) ? amount : 0}(user, address(this), tokenIn, amount, valueUsd1e8);
         require(tokenOut != address(0), "BlueBox: no output token returned");
     }
 }

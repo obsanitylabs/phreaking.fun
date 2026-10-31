@@ -30,8 +30,11 @@ contract ReferralToken is ERC20, AccessControl {
     }
 
     /// @notice Burn redeemed reward tokens from `account`. Callable only by the registry (MINTER_ROLE).
-    function burnByMinter(address account, uint256 amount) external onlyRole(MINTER_ROLE) {
+    ///         Spends `account`'s allowance to this contract, so a transfer of the reward token does not
+    ///         let the original earner (or anyone else) burn another holder's balance.
+    function burnFrom(address account, uint256 amount) external onlyRole(MINTER_ROLE) {
         require(account != address(0), "ReferralToken: zero account");
+        _spendAllowance(account, msg.sender, amount);
         _burn(account, amount);
     }
 }

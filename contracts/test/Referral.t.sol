@@ -36,6 +36,11 @@ abstract contract ReferralBase is Test {
         vm.prank(referee);
         registry.register(up);
     }
+
+    function _approveRedeem(address holder) internal {
+        vm.prank(holder);
+        token.approve(address(registry), 1 ether);
+    }
 }
 
 contract ReferralRegistrationTest is ReferralBase {
@@ -118,6 +123,7 @@ contract ReferralRedemptionTest is ReferralBase {
     function test_Redeem_BurnsTokenAndEmitsGrant() public {
         _giveReward(uplink);
 
+        _approveRedeem(uplink);
         vm.expectEmit(true, true, true, true);
         emit ReferralRegistry.FreeSwapGranted(uplink, tokenOut);
         vm.prank(uplink);
@@ -143,9 +149,39 @@ contract ReferralRedemptionTest is ReferralBase {
         _register(referee1, uplink); // referee earns uplink one whole reward.
         assertEq(token.balanceOf(uplink), 1 ether, "precondition failed");
 
+        _approveRedeem(uplink);
         vm.prank(uplink);
         registry.redeemFreeSwap(tokenOut); // spend the earned free swap.
         assertEq(token.balanceOf(uplink), 0, "reward not consumed");
+    }
+
+    function test_Redeem_RequiresAllowance() public {
+        _giveReward(uplink);
+        vm.prank(uplink);
+        vm.expectRevert();
+        registry.redeemFreeSwap(tokenOut);
+        assertEq(token.balanceOf(uplink), 1 ether, "burned without allowance");
+    }
+
+    function test_Redeem_CannotBurnTransferredBalance() public {
+        _giveReward(uplink);
+        vm.prank(uplink);
+        token.transfer(referee1, 1 ether);
+
+        // Original earner still has no balance. New holder must approve before redeeming.
+        vm.prank(uplink);
+        vm.expectRevert("ReferralRegistry: no referral tokens to redeem");
+        registry.redeemFreeSwap(tokenOut);
+
+        vm.prank(referee1);
+        vm.expectRevert();
+        registry.redeemFreeSwap(tokenOut);
+        assertEq(token.balanceOf(referee1), 1 ether, "transferred reward burned without allowance");
+
+        _approveRedeem(referee1);
+        vm.prank(referee1);
+        registry.redeemFreeSwap(tokenOut);
+        assertEq(token.balanceOf(referee1), 0);
     }
 }
 
@@ -161,6 +197,7 @@ contract ReferralPauseTest is ReferralBase {
         vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("EnforcedPause()"))));
         registry.register(uplink);
 
+        _approveRedeem(uplink);
         vm.prank(uplink);
         vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("EnforcedPause()"))));
         registry.redeemFreeSwap(tokenOut);
@@ -197,6 +234,23 @@ contract ReferralPauseTest is ReferralBase {
         assertFalse(registry.paused(), "not unpaused");
 
         _register(referee1, uplink); // works again post-unpause.
+    }
+
+    function test_Pause_CancelsQueuedUnpause() public {
+        vm.startPrank(guardian);
+        registry.pause();
+        registry.queueUnpause();
+        vm.stopPrank();
+        assertGt(registry.unpauseReleaseAt(), 0);
+
+        vm.prank(guardian);
+        registry.pause();
+        assertEq(registry.unpauseReleaseAt(), 0);
+
+        vm.warp(block.timestamp + registry.UNPAUSE_DELAY());
+        vm.expectRevert("ReferralRegistry: nothing queued");
+        registry.releaseUnpause();
+        assertTrue(registry.paused());
     }
 
     function test_QueueUnpause_DoubleQueue_Reverts() public {

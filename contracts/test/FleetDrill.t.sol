@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {BoxTokenRegistry} from "../src/BoxTokenRegistry.sol";
 import {TokenPricer} from "../src/TokenPricer.sol";
+import {DualQuote} from "./PriceSources.sol";
 import {MysteryBox} from "../src/MysteryBox.sol";
 import {RedBox} from "../src/RedBox.sol";
 import {BlueBox} from "../src/BlueBox.sol";
@@ -44,7 +45,8 @@ contract FleetDrillTest is Test {
 
     function setUp() external {
         registry = new BoxTokenRegistry(admin);
-        pricer = new TokenPricer(admin);
+        DualQuote quotes = new DualQuote();
+        pricer = quotes.deploy(admin, admin, address(quotes));
 
         redBox = new RedBox(registry, pricer, admin);
         referralRegistry = new ReferralRegistry(new ReferralToken(admin, 10_000 ether), admin);
@@ -59,7 +61,7 @@ contract FleetDrillTest is Test {
         tokenIn = address(new MockToken());
         registry.registerToken(tokenIn, 18);
         registry.setPoolMembership(BoxTokenRegistry.BoxType.RED, tokenIn, true);
-        pricer.setPrice(tokenIn, 2000 * 1e8, 18);
+        quotes.quote(tokenIn, 2000 * 1e8, 18);
 
         vm.stopPrank();
     }

@@ -16,5 +16,5 @@ interface IBoxExecutor {
         address tokenIn,
         uint256 amount,
         uint256 valueUsd1e8
-    ) external returns (address tokenOut);
+    ) external payable returns (address tokenOut);
 }

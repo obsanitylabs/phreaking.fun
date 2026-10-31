@@ -45,6 +45,7 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
     event UnpauseQueued(uint256 releaseAt);
     event UnpauseReleased(uint256 queuedAt);
     event DepositReceived(address indexed user, address indexed token, uint256 amount);
+    event UnpauseCancelled(uint256 queuedAt);
 
     /// @param _registry Shared BoxTokenRegistry. Immutable: pool management lives there, not here.
     /// @param _pricer USD price feed (1e8). Immutable for the life of this contract.
@@ -72,8 +73,11 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
     }
 
     /// @notice Pause all box activity immediately. Callable by any GUARDIAN_ROLE holder in one tx.
+    ///         Also cancels a queued unpause so a later incident cannot be lifted by a stale timer.
+    ///         Re-pausing while already paused is allowed: that is how a guardian invalidates a pending lift.
     function pause() external onlyRole(GUARDIAN_ROLE) {
-        _pause();
+        _cancelQueuedUnpause();
+        if (!paused()) _pause();
     }
 
     /// @notice Queue an unpause that becomes effective UNPAUSE_DELAY later (timelocked unpause invariant).
@@ -96,6 +100,14 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
 
     function unpauseReleaseAt() external view returns (uint256) {
         return _unpauseQueuedAt == 0 ? 0 : _unpauseQueuedAt + UNPAUSE_DELAY;
+    }
+
+    /// @dev Drop a pending unpause so releaseUnpause cannot fire against a newer pause.
+    function _cancelQueuedUnpause() internal {
+        uint256 queuedAt = _unpauseQueuedAt;
+        if (queuedAt == 0) return;
+        _unpauseQueuedAt = 0;
+        emit UnpauseCancelled(queuedAt);
     }
 
     // ---- admin configuration (no fund-movement surface) -------------------------
@@ -140,14 +152,26 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
         uint256 value = valueOf(tokenIn, amount);
         _totalValueAtRisk += value;
         _walletDeposited[msg.sender] += value;
+        emit DepositReceived(msg.sender, tokenIn, amount);
 
         if (tokenIn == address(0)) {
             require(msg.value == amount, "MysteryBoxBase: msg.value mismatch");
         } else {
+            require(msg.value == 0, "MysteryBoxBase: unexpected value");
             IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amount);
         }
 
-        tokenOut = _executeSwap(msg.sender, tokenIn, amount, value); // interaction last (CEI)
+        // Snapshot before the swap. msg.value is already in address(this).balance, and an
+        // internal _executeSwap still sees the original msg.value, so a post-call delta of
+        // `amount` is exactly "the executor took this deposit".
+        uint256 balanceBefore = address(this).balance;
+        tokenOut = _executeSwap(msg.sender, tokenIn, amount, value);
+        if (tokenIn == address(0)) {
+            require(balanceBefore >= amount, "MysteryBoxBase: native missing");
+            require(balanceBefore - address(this).balance == amount, "MysteryBoxBase: native not forwarded");
+        } else {
+            require(address(this).balance == balanceBefore, "MysteryBoxBase: unexpected value retained");
+        }
     }
 
     /// @dev Enforce total value-at-risk, per-transaction and per-wallet caps (bounded-launch controls).
@@ -167,8 +191,12 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
     function boxType() public pure virtual returns (BoxTokenRegistry.BoxType);
 
     /// @dev Variants implement their swap rule and return the output token address. `valueUsd1e8` is the
-    ///         deposit-time USD value passed so the executor can enforce slippage/criteria off-chain later.
-    function _executeSwap(address user, address tokenIn, uint256 amount, uint256 valueUsd1e8) internal virtual returns (address tokenOut);
+    ///      deposit-time USD value passed so the executor can enforce slippage/criteria. Native deposits
+    ///      must forward `msg.value` to the executor in the same call; `deposit` then requires a zero balance.
+    function _executeSwap(address user, address tokenIn, uint256 amount, uint256 valueUsd1e8)
+        internal
+        virtual
+        returns (address tokenOut);
 
     /// @notice Cumulative deposited value across all users (USD 1e8). Monotonic by design.
     function totalValueAtRisk() external view returns (uint256) {
