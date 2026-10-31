@@ -102,10 +102,26 @@ export function ResultScreen({ box }: { box: BoxDefinition }) {
           </dd>
         </div>
         {box.id === "russian-flag" && (
-          <div className="flex justify-between gap-4">
-            <dt className="text-white/40">EXPIRES IN</dt>
-            <dd className="text-right text-terminal-orange">23:59:59</dd>
-          </div>
+          <>
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4">
+              <dt className="text-white/40">DIRECTION</dt>
+              <dd className="text-white/80 sm:text-right" data-testid="position-direction">
+                Long 4x
+              </dd>
+            </div>
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4">
+              <dt className="text-white/40">ENTRY</dt>
+              <dd className="text-white/80 sm:text-right" data-testid="position-entry">
+                $1,000.00 USDC
+              </dd>
+            </div>
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4">
+              <dt className="text-white/40">EXPIRES IN</dt>
+              <dd className="text-terminal-orange sm:text-right" data-testid="position-countdown">
+                23:59:59
+              </dd>
+            </div>
+          </>
         )}
       </dl>
 

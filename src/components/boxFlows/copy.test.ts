@@ -13,6 +13,15 @@ import {
 } from "./copy";
 import { reviewDisclosure, reviewWarnings } from "./reviewModel";
 import { blockingCap, capReachedCopy, gateFromSnapshot, unpausePendingCopy } from "./boxStatusRead";
+import { canAdvanceFromConfigure, initialFlowState } from "./flowState";
+import { toggleNftSelection } from "./moduleModel";
+import {
+  CHECKERED_DEMO_LABEL,
+  PURPLE_MAX_NFTS,
+  PURPLE_SIMILAR_VALUE,
+  RUSSIAN_ACKNOWLEDGEMENT,
+  RUSSIAN_TAX_TABLE,
+} from "./copy";
 
 test("catalogue has the 15 specified boxes and withholds Yellow and Pink", () => {
   assert.equal(BOXES.length, 15);
@@ -141,6 +150,64 @@ test("pause and cap gates follow MysteryBoxBase view rules", () => {
     capReachedCopy("wallet"),
     "This box has reached its wallet cap. Try a smaller amount or another box.",
   );
+});
+
+test("Purple, Checkered, and Russian Flag modules gate review without a broadcast", () => {
+  const purple = initialFlowState(BOX_BY_ID.purple);
+  assert.equal(canAdvanceFromConfigure(BOX_BY_ID.purple, purple), false);
+  const picked = {
+    ...purple,
+    selectedNfts: toggleNftSelection(toggleNftSelection([], "harold-4821"), "punks-912"),
+  };
+  assert.equal(canAdvanceFromConfigure(BOX_BY_ID.purple, picked), true);
+  const capped = { ...purple, selectedNfts: ["a", "b", "c", "d", "e"] };
+  assert.equal(toggleNftSelection(capped.selectedNfts, "extra").length, PURPLE_MAX_NFTS);
+  const alt = {
+    ...purple,
+    toggles: { ...purple.toggles, mode: "alt-to-nft" },
+    rows: [{ token: "USDC", amount: "0" }],
+  };
+  assert.equal(canAdvanceFromConfigure(BOX_BY_ID.purple, alt), false);
+  assert.equal(
+    canAdvanceFromConfigure(BOX_BY_ID.purple, {
+      ...alt,
+      rows: [{ token: "USDC", amount: "25" }],
+    }),
+    true,
+  );
+  assert.ok(reviewWarnings(BOX_BY_ID.purple).includes(PURPLE_SIMILAR_VALUE));
+
+  const checkered = initialFlowState(BOX_BY_ID.checkered);
+  assert.equal(canAdvanceFromConfigure(BOX_BY_ID.checkered, checkered), false);
+  assert.equal(
+    canAdvanceFromConfigure(BOX_BY_ID.checkered, {
+      ...checkered,
+      matchPhase: "waiting",
+    }),
+    false,
+  );
+  assert.equal(
+    canAdvanceFromConfigure(BOX_BY_ID.checkered, {
+      ...checkered,
+      matchPhase: "matched",
+      matchAccepted: true,
+    }),
+    true,
+  );
+  assert.equal(CHECKERED_DEMO_LABEL, "demo simulator");
+  assert.equal(
+    BOX_BY_ID.checkered.acknowledgement,
+    "I understand I may receive less value and there are no takebacks.",
+  );
+  assert.equal(reviewDisclosure(BOX_BY_ID.checkered).irreversibleHeading, "THIS CANNOT BE UNDONE");
+
+  const russian = reviewDisclosure(BOX_BY_ID["russian-flag"]);
+  assert.equal(russian.taxLine, RUSSIAN_TAX_TABLE);
+  assert.equal(russian.taxLine, "PnL < 2.4% → 13% · 2.4%–50% → 15% · > 50% → 22%.");
+  assert.equal(russian.acknowledgement, RUSSIAN_ACKNOWLEDGEMENT);
+  assert.equal(russian.irreversibleHeading, "THIS CANNOT BE UNDONE");
+  assert.match(russian.positionNote ?? "", /24 hours/);
+  assert.equal(BOX_BY_ID["russian-flag"].demo.eyebrow, "POSITION OPEN");
 });
 
 test("Red, Purple, and Rainbow one-liners use the spec em dash", () => {

@@ -38,6 +38,14 @@ export interface FlowState {
   offerAccepted: boolean;
   /** Green §4: an ineligible receipt blocks Review until it is removed. */
   greenEligible: boolean;
+  /** Purple §6.3.1: selected NFT ids. Capped at 5. */
+  selectedNfts: string[];
+  /** Purple altcoin → NFT floor sweep preference. */
+  floorSweep: boolean;
+  /** Checkered §6.3.1 demo matchmaking. Review stays blocked until matched. */
+  matchPhase: "escrow" | "waiting" | "matched";
+  matchElapsed: number;
+  matchAccepted: boolean;
 }
 
 export function defaultToggles(box: BoxDefinition): Record<string, string> {
@@ -65,6 +73,11 @@ export function initialFlowState(box: BoxDefinition): FlowState {
     finalityHidden: false,
     offerAccepted: false,
     greenEligible: true,
+    selectedNfts: [],
+    floorSweep: false,
+    matchPhase: "escrow",
+    matchElapsed: 0,
+    matchAccepted: false,
   };
 }
 
@@ -110,6 +123,12 @@ export function canAdvanceFromConfigure(box: BoxDefinition, state: FlowState): b
   if (state.gate === "locked" || box.status === "locked") return false;
   if (box.flowKind === "portfolio-offer" && !state.offerAccepted) return false;
   if (box.flowKind === "recycle" && !state.greenEligible) return false;
+  if (box.id === "purple") {
+    const mode = state.toggles.mode === "alt-to-nft" ? "alt-to-nft" : "nft-to-alt";
+    if (mode === "nft-to-alt") return state.selectedNfts.length > 0;
+    return state.rows.some((row) => Number(row.amount) > 0);
+  }
+  if (box.id === "checkered") return state.matchPhase === "matched" && state.matchAccepted;
   if (box.assetMode === "wallet" || box.assetMode === "none") return true;
   return state.rows.some((row) => Number(row.amount) > 0);
 }
