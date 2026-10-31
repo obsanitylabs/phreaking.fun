@@ -24,7 +24,6 @@ const {
   trackBoxConfigured,
   trackBoxOpened,
   trackPurchaseConfirmed,
-  trackPurchaseSubmitted,
   trackWalletConnected,
 } = analytics;
 
@@ -98,11 +97,10 @@ const CHAIN = 11155111;
 windowObj.OBS.page("/"); // SDK auto page_view
 trackWalletConnected(CHAIN, "metaMask", "MetaMask");
 trackBoxConfigured(CHAIN);
-trackPurchaseSubmitted(CHAIN);
+// Genuine on-chain purchase confirmation (funnel step 2) — never the box-open edge.
 trackPurchaseConfirmed(CHAIN);
 trackActivationComplete("blue", "blue_box_home_modal");
 trackBoxOpened("blue"); // first open
-trackPurchaseSubmitted(CHAIN);
 trackBoxOpened("blue"); // second open
 
 // --- Flatten captured events ------------------------------------------------
@@ -120,12 +118,10 @@ for (const e of accepted) {
 const expected = [
   "page_view",
   "wallet_connected",
-  "funnel_step", // box_configured
-  "funnel_step", // purchase_submitted
-  "funnel_step", // purchase_confirmed
+  "funnel_step", // box_configured (step 1)
+  "funnel_step", // purchase_confirmed (step 2)
   "activation_complete",
   "core_action", // box_opened (1st)
-  "funnel_step", // purchase_submitted
   "core_action", // box_opened (2nd)
 ];
 
@@ -133,30 +129,28 @@ const expected = [
 const emitted = events.map((e) => e.event_name);
 let ok = JSON.stringify(emitted) === JSON.stringify(expected);
 
-// Known upstream collector bug (tracked under a sibling CTO task): the pff validator has
-// no `first_session` case, so `activation_complete` is rejected with
-// missing-required:first_session. The emit is wired regardless; it lands once that merges.
+// Every emitted payload must be accepted by the collector. (The earlier
+// `activation_complete` / first_session validator gap was fixed by OBS-355.)
 const rejected = events
   .map((e) => ({ e, r: validateEvent(e) }))
   .filter(({ r }) => !r.ok);
-const onlyActivationRejected =
-  rejected.length === 1 &&
-  rejected[0].e.event_name === "activation_complete" &&
-  /missing-required:first_session/.test(rejected[0].r.reason);
-if (!onlyActivationRejected) ok = false;
+if (rejected.length !== 0) ok = false;
 console.log(
-  "\nrejected by collector (expected: only activation_complete, known validator bug):",
+  "\nrejected by collector (expected: none):",
   rejected.map(({ e, r }) => `${e.event_name} → ${r.reason}`),
 );
 
 const hn = accepted.map((e) => e.event_name);
-const hnExpected = expected.filter((n) => n !== "activation_complete");
-if (JSON.stringify(hn) !== JSON.stringify(hnExpected)) ok = false;
+if (JSON.stringify(hn) !== JSON.stringify(expected)) ok = false;
 
 const wc = accepted.find((e) => e.event_name === "wallet_connected");
 if (!wc || wc.chain_id !== CHAIN || wc.wallet_connected !== true) ok = false;
 const cfg = accepted.find((e) => e.funnel_name === "pff_purchase" && e.step_name === "box_configured");
 if (!cfg || cfg.step_index !== 1) ok = false;
+const conf = accepted.find((e) => e.funnel_name === "pff_purchase" && e.step_name === "purchase_confirmed");
+if (!conf || conf.step_index !== 2) ok = false;
+// Closed list (§4.4): no `purchase_submitted` may ever be emitted for pff_purchase.
+if (events.some((e) => e.step_name === "purchase_submitted")) ok = false;
 const opens = accepted.filter((e) => e.event_name === "core_action");
 if (opens.length !== 2) ok = false;
 

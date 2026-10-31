@@ -9,7 +9,6 @@ import {
   trackBoxOpened,
   trackBoxOpenedWithActivation,
   trackPurchaseConfirmed,
-  trackPurchaseSubmitted,
   trackWalletConnected,
   __resetAnalyticsForTests,
   SEPOLIA_CHAIN_ID,
@@ -95,12 +94,11 @@ test("funnel steps carry funnel_name, monotonic step_index and chain_id", () => 
 
   trackBoxConfigured(SEPOLIA_CHAIN_ID);
   trackBoxConfigured(SEPOLIA_CHAIN_ID); // once per session
-  trackPurchaseSubmitted(SEPOLIA_CHAIN_ID);
   trackPurchaseConfirmed(SEPOLIA_CHAIN_ID);
 
   assert.deepEqual(
     captured.map((c) => c.name),
-    ["funnel_step", "funnel_step", "funnel_step"],
+    ["funnel_step", "funnel_step"],
   );
   assert.deepEqual(captured[0].attrs, {
     funnel_name: "pff_purchase",
@@ -108,10 +106,27 @@ test("funnel steps carry funnel_name, monotonic step_index and chain_id", () => 
     step_name: "box_configured",
     chain_id: SEPOLIA_CHAIN_ID,
   });
-  assert.equal(captured[1].attrs.step_name, "purchase_submitted");
-  assert.equal(captured[2].attrs.step_name, "purchase_confirmed");
-  const indices = captured.map((c) => c.attrs.step_index as number);
-  assert.deepEqual(indices, [1, 2, 3]);
+  assert.deepEqual(captured[1].attrs, {
+    funnel_name: "pff_purchase",
+    step_index: 2,
+    step_name: "purchase_confirmed",
+    chain_id: SEPOLIA_CHAIN_ID,
+  });
+});
+
+test("pff_purchase funnel_step vocabulary is the §4.4 closed list only", () => {
+  const { captured } = installWindow();
+
+  trackBoxConfigured(SEPOLIA_CHAIN_ID);
+  trackPurchaseConfirmed(SEPOLIA_CHAIN_ID);
+
+  const steps = captured.map((c) => c.attrs.step_name as string);
+  assert.deepEqual(steps, ["box_configured", "purchase_confirmed"]);
+  assert.equal(steps.includes("purchase_submitted"), false);
+  assert.deepEqual(
+    captured.map((c) => c.attrs.step_index as number),
+    [1, 2],
+  );
 });
 
 test("core_action box_opened fires on every open; activation only once", () => {
@@ -165,22 +180,21 @@ test("emits are no-ops (never throw) when window.OBS is missing", () => {
   assert.doesNotThrow(() => {
     trackWalletConnected(SEPOLIA_CHAIN_ID, "metaMask", "MetaMask");
     trackBoxConfigured(SEPOLIA_CHAIN_ID);
-    trackPurchaseSubmitted(SEPOLIA_CHAIN_ID);
     trackPurchaseConfirmed(SEPOLIA_CHAIN_ID);
     trackBoxOpened("blue");
     trackActivationComplete("blue", "blue_box_home_modal");
   });
 });
 
-test("full acceptance ordering: page_view → wallet → configure → open+activate → open", () => {
+test("full acceptance ordering: page_view → wallet → configure → confirm → open+activate → open", () => {
   const { captured } = installWindow();
 
   // SDK auto page_view is emitted by public/obs-analytics.js, not this module.
   trackWalletConnected(SEPOLIA_CHAIN_ID, "walletConnect", "WalletConnect");
   trackBoxConfigured(SEPOLIA_CHAIN_ID);
-  trackPurchaseSubmitted(SEPOLIA_CHAIN_ID);
+  // Genuine on-chain purchase confirmation (not the box-open edge).
+  trackPurchaseConfirmed(SEPOLIA_CHAIN_ID);
   trackBoxOpenedWithActivation("blue", "blue_box_home_modal");
-  trackPurchaseSubmitted(SEPOLIA_CHAIN_ID);
   trackBoxOpenedWithActivation("blue", "blue_box_home_modal");
 
   assert.deepEqual(
@@ -191,8 +205,13 @@ test("full acceptance ordering: page_view → wallet → configure → open+acti
       "funnel_step",
       "activation_complete",
       "core_action",
-      "funnel_step",
       "core_action",
     ],
+  );
+  assert.deepEqual(
+    captured
+      .filter((c) => c.name === "funnel_step")
+      .map((c) => c.attrs.step_name),
+    ["box_configured", "purchase_confirmed"],
   );
 });
