@@ -12,6 +12,7 @@ import {
   WHITE_PANEL_MIN_FONT_PX,
 } from "./copy";
 import { reviewDisclosure, reviewWarnings } from "./reviewModel";
+import { blockingCap, capReachedCopy, gateFromSnapshot, unpausePendingCopy } from "./boxStatusRead";
 
 test("catalogue has the 15 specified boxes and withholds Yellow and Pink", () => {
   assert.equal(BOXES.length, 15);
@@ -74,6 +75,72 @@ test("White verbatim panel pins the exact string and a 14px floor", () => {
 
 test("Sepolia banner copy is the exact non-dismissible string", () => {
   assert.equal(SEPOLIA_BANNER, "Sepolia testnet demo — never send real funds.");
+});
+
+test("pause and cap gates follow MysteryBoxBase view rules", () => {
+  const open = {
+    paused: false,
+    unpauseReleaseAt: 0,
+    blockingCap: null,
+  };
+  assert.deepEqual(gateFromSnapshot(open, 1_700_000_000), {
+    gate: "none",
+    capKind: null,
+    notice: null,
+  });
+
+  assert.equal(
+    gateFromSnapshot({ ...open, paused: true }, 1_700_000_000).notice,
+    "This box is paused by the guardian. No new deposits.",
+  );
+
+  const pending = gateFromSnapshot(
+    { ...open, paused: true, unpauseReleaseAt: 1_700_086_400 },
+    1_700_000_000,
+  );
+  assert.equal(pending.gate, "paused");
+  assert.equal(
+    pending.notice,
+    unpausePendingCopy(1_700_086_400),
+  );
+  assert.match(pending.notice ?? "", /^Paused\. Unpause is timelocked until /);
+
+  const caps = {
+    depositUsd1e8: BigInt(200),
+    perTransactionCap: BigInt(100),
+    perWalletCap: BigInt(0),
+    totalValueAtRiskCap: BigInt(0),
+    totalValueAtRisk: BigInt(0),
+    walletDeposited: BigInt(0),
+  };
+  assert.equal(blockingCap(caps), "tx");
+  assert.equal(
+    blockingCap({
+      ...caps,
+      perTransactionCap: BigInt(0),
+      totalValueAtRiskCap: BigInt(150),
+      totalValueAtRisk: BigInt(0),
+    }),
+    "var",
+  );
+  assert.equal(
+    blockingCap({
+      ...caps,
+      perTransactionCap: BigInt(0),
+      perWalletCap: BigInt(250),
+      walletDeposited: BigInt(100),
+    }),
+    "wallet",
+  );
+  assert.equal(blockingCap({ ...caps, perTransactionCap: BigInt(0) }), null);
+  assert.equal(
+    capReachedCopy("var"),
+    "This box has reached its VaR cap. Try a smaller amount or another box.",
+  );
+  assert.equal(
+    capReachedCopy("wallet"),
+    "This box has reached its wallet cap. Try a smaller amount or another box.",
+  );
 });
 
 test("Red, Purple, and Rainbow one-liners use the spec em dash", () => {

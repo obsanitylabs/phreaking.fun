@@ -42,6 +42,9 @@ export const STAKING_LOCKED_COPY = "STAKING IS NOT LIVE ON SEPOLIA";
 export const PAUSED_COPY =
   "This box is paused by the guardian. No new deposits.";
 
+/** Spec §9.1. The timestamp is appended by the status reader. */
+export const UNPAUSE_PENDING_PREFIX = "Paused. Unpause is timelocked until ";
+
 export const CAP_REACHED_COPY =
   "This box has reached its tx cap. Try a smaller amount or another box.";
 

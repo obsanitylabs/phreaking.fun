@@ -10,6 +10,9 @@ export type FlowStep =
 
 export type GateKind = "none" | "paused" | "cap" | "wrong-network" | "locked";
 
+/** Which MysteryBoxBase cap blocked the deposit. Spec §9.1 names these three. */
+export type CapKind = "tx" | "var" | "wallet";
+
 export interface AssetRow {
   token: string;
   amount: string;
@@ -22,6 +25,8 @@ export interface FlowState {
   acknowledged: boolean;
   ackError: boolean;
   gate: GateKind;
+  /** Set when gate is "cap". The banner names this cap. */
+  capKind: CapKind | null;
   notice: string | null;
   charityMode: "random" | "choose";
   machine: "$1" | "$10" | "$100";
@@ -51,6 +56,7 @@ export function initialFlowState(box: BoxDefinition): FlowState {
     acknowledged: false,
     ackError: false,
     gate: box.status === "locked" ? "locked" : "none",
+    capKind: null,
     notice: null,
     charityMode: "random",
     machine: "$10",
