@@ -11,7 +11,7 @@ import {
   WHITE_BOX_RECEIPT_LANGUAGE,
   WHITE_PANEL_MIN_FONT_PX,
 } from "./copy";
-import { reviewDisclosure, reviewReceiveLine, reviewWarnings } from "./reviewModel";
+import { reviewDisclosure, reviewReceiveLine, reviewWarnings, signSummaryLine } from "./reviewModel";
 import { blockingCap, capReachedCopy, gateFromSnapshot, unpausePendingCopy } from "./boxStatusRead";
 import { canAdvanceFromConfigure, canConfirmReview, initialFlowState } from "./flowState";
 import {
@@ -309,6 +309,17 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
     "NFTs of similar value",
   );
   assert.equal(orangeLive.label.includes("pool quote"), true);
+  const orangeSign = signSummaryLine(BOX_BY_ID.orange, orangeLive, [
+    { symbol: "ETH", amount: "0.05", usd: "$100.00" },
+  ]);
+  assert.match(orangeSign, /0\.05 ETH \(\$100\.00\) → ORANGE BOX/);
+  assert.match(orangeSign, /\$95\.00 in WBTC/);
+  assert.equal(orangeSign.includes("0.05 ETH → Orange"), false);
+  const redSign = signSummaryLine(BOX_BY_ID.red, live, [
+    { symbol: "ETH", amount: "0.05", usd: "$125.00" },
+  ]);
+  assert.match(redSign, /Catalogue preview/);
+  assert.equal(redSign.includes("0.05 ETH → Red Box. Network"), false);
 
   const orangeBlocked = buildSimulatedQuote(BOX_BY_ID.orange, orange, issuedAt, {
     source: "error",

@@ -55,6 +55,7 @@ import {
 import { readSepoliaSpotPrices, type SpotPriceBook } from "./spotPriceRead";
 import { ResultScreen } from "./ResultScreen";
 import { ReviewScreen } from "./ReviewScreen";
+import { signSummaryLine } from "./reviewModel";
 import { SepoliaBanner } from "./SepoliaBanner";
 
 const WITHHELD = ["yellow", "pink"];
@@ -341,6 +342,21 @@ export function BoxFlowApp() {
     return buildSimulatedQuote(selected, state, nowMs, spot ?? { source: "fallback" });
   }, [selected, state, nowMs, spot]);
 
+  useEffect(() => {
+    if (!quote || state?.step !== "sign") return;
+    if (!quote.expired && !quote.spotBlocked && !quote.outputBlocked) return;
+    setState((current) =>
+      current && current.step === "sign"
+        ? {
+            ...current,
+            step: "review",
+            signing: false,
+            notice: quote.expired ? QUOTE_EXPIRED_COPY : quote.label,
+          }
+        : current,
+    );
+  }, [quote, state?.step]);
+
   const quoteKey = state ? quoteInputKey(state) : "";
   const quoteKeyRef = useRef("");
   useEffect(() => {
@@ -580,11 +596,27 @@ export function BoxFlowApp() {
                   <p className="mt-2 text-[12px] leading-relaxed text-white/70">
                     {signBlockedReason()}
                   </p>
-                  <p className="mt-2 text-[12px] text-white/60">
-                    0.05 ETH → {selected.name}. Network: Sepolia (11155111).
+                  <p className="mt-2 text-[12px] text-white/80" data-testid="sign-summary">
+                    {signSummaryLine(
+                      selected,
+                      quote,
+                      sendRows(
+                        selected,
+                        state,
+                        quote?.spotSource === "chainlink" ? quote.prices : undefined,
+                      ),
+                    )}
                   </p>
+                  <p className="mt-1 text-[12px] text-white/60" data-testid="sign-network">
+                    Network: Sepolia (11155111). {quote?.route ?? selected.demo.route}
+                  </p>
+                  {quote?.expired || quote?.spotBlocked || quote?.outputBlocked ? (
+                    <p className="mt-2 text-[12px] font-bold text-terminal-orange" role="status">
+                      {quote.expired ? QUOTE_EXPIRED_COPY : quote.label}
+                    </p>
+                  ) : null}
                   <p className="mt-3 text-[11px] text-white/40">
-                    phreaking.fun will never ask for your seed phrase.
+                    phreaking.fun will never ask for your seed phrase. Nothing is sent from this preview.
                   </p>
                 </div>
               )}
@@ -1001,8 +1033,19 @@ function FlowFooter({
         <button
           type="button"
           data-testid="preview-finality"
-          onClick={() => onPatch({ step: "finality", stageIndex: 0, finalityHidden: false, notice: null })}
-          className="min-h-11 border border-white/25 px-4 py-3 text-xs tracking-widest text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
+          disabled={Boolean(quote?.expired || quote?.spotBlocked || quote?.outputBlocked)}
+          onClick={() => {
+            if (quote?.expired || quote?.spotBlocked || quote?.outputBlocked) {
+              onPatch({
+                step: "review",
+                signing: false,
+                notice: quote.expired ? QUOTE_EXPIRED_COPY : quote.label,
+              });
+              return;
+            }
+            onPatch({ step: "finality", stageIndex: 0, finalityHidden: false, notice: null });
+          }}
+          className="min-h-11 border border-white/25 px-4 py-3 text-xs tracking-widest text-white/70 focus:outline-none focus:ring-2 focus:ring-white disabled:cursor-not-allowed disabled:border-white/15 disabled:text-white/25"
         >
           PREVIEW FINALITY (NO TX)
         </button>

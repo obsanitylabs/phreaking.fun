@@ -130,6 +130,30 @@ export function reviewReceiveLine(
   return reviewDisclosure(box).youReceive;
 }
 
+export interface SignSendRow {
+  symbol: string;
+  amount: string;
+  usd: string;
+}
+
+/**
+ * Spec §6.5. The signature preview repeats the quote the user just accepted.
+ * It must not invent a deposit such as "0.05 ETH".
+ */
+export function signSummaryLine(
+  box: BoxDefinition,
+  quote: SimulatedQuote | null | undefined,
+  sendRows: SignSendRow[],
+): string {
+  const send =
+    sendRows.length === 0
+      ? "No assets selected"
+      : sendRows.map((row) => `${row.amount} ${row.symbol}`).join(" + ");
+  const receive = reviewReceiveLine(box, quote);
+  const value = quote?.depositUsd ? ` (${quote.depositUsd})` : "";
+  return `${send}${value} → ${box.name}. You receive: ${receive}.`;
+}
+
 export function reviewWarnings(box: BoxDefinition): string[] {
   const disclosure = reviewDisclosure(box);
   const merged = [...box.warnings];
