@@ -19,6 +19,7 @@ import {
 } from "./boxStatusRead";
 import {
   BLUE_BAND_COPY,
+  BLUE_OFFER_REFRESHED,
   CAP_REACHED_COPY,
   FINALITY_KEEP_OPEN,
   GREEN_INELIGIBLE_COPY,
@@ -45,6 +46,8 @@ import { formatUsd as formatModuleUsd, nftFloorTotal, purpleMode, purpleReviewRe
 import { QuotePanel } from "./QuotePanel";
 import {
   buildSimulatedQuote,
+  depositUsd,
+  formatUsd as formatQuoteUsd,
   quoteInputKey,
   QUOTE_UPDATED,
   type SimulatedQuote,
@@ -409,9 +412,10 @@ export function BoxFlowApp() {
         Production flow shell. Quotes on this page are a labelled 60-second
         simulator. Pause and cap read the Sepolia fleet when an address is
         configured. Checkered has no counterparty pool and Russian Flag does not
-        open a GMX position. Deposit and output value can use a Sepolia Chainlink
-        spot read. That read is not a pool quote. Confirm does not open a wallet
-        or broadcast.
+        open a GMX position. Deposit and known output value can use a Sepolia
+        Chainlink spot read. Blue and Green use that same read. Red stays a
+        whole-token preview. That read is not a pool quote. Confirm does not
+        open a wallet or broadcast.
       </p>
       {TOOLKITS.map((toolkit) => (
         <section key={toolkit.id} className="mt-8" aria-labelledby={`toolkit-${toolkit.id}`}>
@@ -660,6 +664,15 @@ function ConfigureStep({
   onChange: (partial: Partial<FlowState>) => void;
   onRefreshQuote: () => void;
 }) {
+  const spotReady = quote?.spotSource === "chainlink" && !quote.spotBlocked && !quote.outputBlocked;
+  const offerValue =
+    box.flowKind === "portfolio-offer" ? depositUsd(box, state, quote?.prices) : 0;
+  const offerBlocked = box.flowKind === "portfolio-offer" && !spotReady;
+  const offerReason = "Offer needs a Sepolia spot read.";
+  const offerLine = offerBlocked
+    ? "Spot read required → XCM + RIO + LINK"
+    : `${formatQuoteUsd(offerValue)} → XCM + RIO + LINK`;
+
   if (box.status === "locked" || state.gate === "locked") {
     return (
       <div data-testid="locked-configure">
@@ -720,18 +733,26 @@ function ConfigureStep({
         </div>
       ))}
       {box.flowKind === "portfolio-offer" && (
-        <div className="border border-white/25 p-3" data-testid="blue-offer">
+        <div className="border border-white/25 p-3" data-testid="blue-offer" data-offer-blocked={offerBlocked ? "true" : "false"}>
           <p className="text-[10px] uppercase tracking-widest text-white/40">Offer for the lot</p>
-          <p className="mt-1 text-sm text-white">$160.00 → XCM + RIO + LINK</p>
+          <p className="mt-1 text-sm text-white" data-testid="blue-offer-line">
+            {offerLine}
+          </p>
           <p className="text-[11px] text-white/50">{BLUE_BAND_COPY}</p>
+          {offerBlocked && (
+            <p className="mt-2 text-[11px] font-bold text-terminal-orange" role="alert" data-testid="blue-offer-blocked">
+              {offerReason}
+            </p>
+          )}
           <div className="mt-2 flex gap-2">
             <button
               type="button"
               data-testid="accept-offer"
+              disabled={offerBlocked}
               onClick={() => onChange({ offerAccepted: true, notice: "Offer accepted. Continue to review." })}
-              className="min-h-11 flex-1 border border-terminal-green px-3 text-[10px] uppercase tracking-widest text-terminal-green focus:outline-none focus:ring-2 focus:ring-white"
+              className="min-h-11 flex-1 border border-terminal-green px-3 text-[10px] uppercase tracking-widest text-terminal-green focus:outline-none focus:ring-2 focus:ring-white disabled:cursor-not-allowed disabled:border-white/20 disabled:text-white/30"
             >
-              {state.offerAccepted ? "Offer accepted" : "Accept offer"}
+              {state.offerAccepted && !offerBlocked ? "Offer accepted" : "Accept offer"}
             </button>
             <button
               type="button"

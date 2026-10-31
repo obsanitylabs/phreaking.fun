@@ -4,8 +4,8 @@ import { SEPOLIA_READ_RPC } from "./boxStatusRead";
 
 /**
  * Sepolia Chainlink aggregators. These are view reads of public feeds.
- * They price the deposit line only. They are not a pool quote, a swap route,
- * or a GMX mark.
+ * They price the deposit line and known output values. They are not a pool
+ * quote, a swap route, or a GMX mark.
  *
  * Sources: Chainlink Sepolia price feeds (ETH/USD, LINK/USD, BTC/USD).
  * USDC is the dollar unit and is not read from a feed.

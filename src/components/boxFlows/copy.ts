@@ -66,6 +66,7 @@ export const GREEN_INELIGIBLE_COPY =
   "This token does not meet the recycler criteria.";
 
 export const BLUE_BAND_COPY = "Slippage band ±1%. Accept the offer to continue.";
+export const BLUE_OFFER_REFRESHED = "Offer refreshed — review the new value.";
 
 /** Spec §6.3.1 Purple. The band is estimated, not guaranteed. */
 export const PURPLE_SIMILAR_VALUE =
