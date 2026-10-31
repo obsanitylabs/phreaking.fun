@@ -21,6 +21,9 @@ export const SPOT_BLOCKED_LABEL = "Sepolia spot read failed. Refresh quote to tr
 export const OUTPUT_VALUE_LABEL =
   "Output value uses the same Sepolia Chainlink spot read. It is not a pool quote.";
 export const OUTPUT_VALUE_BLOCKED = "Output value needs a Sepolia spot read.";
+export const OFFER_BAND_LABEL =
+  "Offer value uses the same Sepolia Chainlink spot read. It is not a pool fill.";
+export const OFFER_OUTSIDE_BAND = "Offer refreshed — review the new value.";
 
 export const NETWORK_FEE_LINE = "0.0012 ETH + 5% premium, charged in the native gas token";
 export const PLATFORM_FEE_LINE = "5% of output (shown in the output token)";
@@ -54,6 +57,8 @@ export interface SimulatedQuote {
   /** True when the output value cannot be priced from the live book. */
   outputBlocked: boolean;
   outputNote: string;
+  /** Prices used for this quote. Live when the spot read succeeded. */
+  prices: Partial<Record<string, number>>;
 }
 
 export function formatQuoteClock(seconds: number): string {
@@ -136,10 +141,13 @@ export function quoteNeedsSpot(box: BoxDefinition, state: FlowState): boolean {
 
 /**
  * Boxes whose receive line is a known-output USD value, not a catalogue preview.
- * Random, match, and position boxes stay labelled simulations.
+ * Random, 1:1, match, and position boxes stay labelled simulations.
+ * Red stays a whole-token preview: a dollar line would contradict "one whole token out".
  */
 export function outputValueKind(box: BoxDefinition): "value" | "preview" {
-  if (box.id === "orange" || box.id === "white") return "value";
+  if (box.id === "orange" || box.id === "white" || box.id === "blue" || box.id === "green") {
+    return "value";
+  }
   if (box.id === "purple") return "value";
   if (box.flowKind === "mirror") return "value";
   return "preview";
@@ -159,6 +167,15 @@ export interface OutputEstimate {
 
 /** Net of the displayed 5% output fee. This is a spot value, not a pool fill. */
 export const OUTPUT_FEE_RATE = 0.05;
+
+/** Spec §6.3.1. Blue's offered basket must stay inside this band of the deposit. */
+export const BLUE_SLIPPAGE_BAND = 0.01;
+
+export function offerInsideBand(deposit: number, offer: number): boolean {
+  if (!Number.isFinite(deposit) || deposit <= 0) return false;
+  if (!Number.isFinite(offer) || offer <= 0) return false;
+  return Math.abs(offer - deposit) / deposit <= BLUE_SLIPPAGE_BAND + 1e-9;
+}
 
 export function estimatedReceive(
   box: BoxDefinition,
@@ -235,6 +252,24 @@ export function estimatedReceive(
       note: OUTPUT_VALUE_LABEL,
     };
   }
+  if (box.id === "blue") {
+    // Spec §6.3.1: the offered basket matches deposit USD within ±1%.
+    // A 5% output haircut would always sit outside that band, so the offer
+    // uses the spot deposit. The platform fee stays on its own line.
+    const inside = offerInsideBand(gross, gross);
+    return {
+      line: inside ? `~ ${formatUsd(gross)} offer · XCM + RIO + LINK` : "Offer outside ±1%",
+      blocked: !inside,
+      note: inside ? OFFER_BAND_LABEL : OFFER_OUTSIDE_BAND,
+    };
+  }
+  if (box.id === "green") {
+    return {
+      line: `~ ${formatUsd(net)} in screened tokens`,
+      blocked: false,
+      note: OUTPUT_VALUE_LABEL,
+    };
+  }
   if (box.id === "white") {
     const charity = state.charityMode === "random" ? "a random charity" : "the chosen charity";
     return {
@@ -302,6 +337,7 @@ export function buildSimulatedQuote(
     spotBlocked,
     outputBlocked: output.blocked,
     outputNote: output.note,
+    prices,
   };
 }
 

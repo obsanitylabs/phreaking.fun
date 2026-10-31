@@ -16,6 +16,7 @@ import { blockingCap, capReachedCopy, gateFromSnapshot, unpausePendingCopy } fro
 import { canAdvanceFromConfigure, canConfirmReview, initialFlowState } from "./flowState";
 import {
   buildSimulatedQuote,
+  offerInsideBand,
   formatQuoteClock,
   quoteIsExpired,
   quoteNeedsSpot,
@@ -270,6 +271,27 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
   assert.match(live.estimatedReceive, /Catalogue preview/);
   assert.match(live.outputNote, /not a live pool read/);
   assert.equal(QUOTE_DEMO_LABEL.includes("GMX"), true);
+
+  const blue = initialFlowState(BOX_BY_ID.blue);
+  blue.quoteIssuedAt = issuedAt;
+  const blueLive = buildSimulatedQuote(BOX_BY_ID.blue, blue, issuedAt, {
+    source: "chainlink",
+    prices: { ETH: 2000, USDC: 1 },
+  });
+  assert.equal(blueLive.outputBlocked, false);
+  assert.match(blueLive.estimatedReceive, /\$100\.00 offer/);
+  assert.match(blueLive.outputNote, /not a pool fill/);
+  assert.equal(offerInsideBand(100, 101), true);
+  assert.equal(offerInsideBand(100, 102), false);
+
+  const green = initialFlowState(BOX_BY_ID.green);
+  green.quoteIssuedAt = issuedAt;
+  const greenLive = buildSimulatedQuote(BOX_BY_ID.green, green, issuedAt, {
+    source: "chainlink",
+    prices: { ETH: 2000, USDC: 1 },
+  });
+  assert.match(greenLive.estimatedReceive, /\$95\.00 in screened tokens/);
+  assert.match(greenLive.outputNote, /not a pool quote/);
 
   const orange = initialFlowState(BOX_BY_ID.orange);
   orange.quoteIssuedAt = issuedAt;
