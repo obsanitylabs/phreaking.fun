@@ -72,6 +72,8 @@ assert.ok(review.includes("possibleOutputs"));
 assert.ok(app.includes("SepoliaBanner"));
 assert.ok(flow.includes("does not request a signature"));
 assert.ok(app.includes("signBlockedReason"));
+assert.ok(app.includes("signSummaryLine"));
+assert.equal(app.includes("0.05 ETH →"), false);
 assert.ok(app.includes("HIDE"));
 assert.ok(app.includes("finalityHidden"));
 assert.ok(app.includes("offerAccepted"));
