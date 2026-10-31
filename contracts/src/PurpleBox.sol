@@ -15,8 +15,10 @@ contract PurpleBox is MysteryBoxBase {
         return BoxTokenRegistry.BoxType.PURPLE;
     }
 
+    /// @dev Delegate settlement to the configured executor, which pays `user` atomically.
     function _executeSwap(address user, address tokenIn, uint256 amount, uint256 valueUsd1e8) internal override returns (address tokenOut) {
         require(address(executor) != address(0), "PurpleBox: executor not set");
+        // Interaction last in the deposit CEI sequence.
         tokenOut = _dispatchToExecutor(user, tokenIn, amount, valueUsd1e8);
         require(tokenOut != address(0), "PurpleBox: no output token returned");
     }
