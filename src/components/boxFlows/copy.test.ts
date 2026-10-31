@@ -11,7 +11,7 @@ import {
   WHITE_BOX_RECEIPT_LANGUAGE,
   WHITE_PANEL_MIN_FONT_PX,
 } from "./copy";
-import { reviewDisclosure, reviewWarnings } from "./reviewModel";
+import { reviewDisclosure, reviewReceiveLine, reviewWarnings } from "./reviewModel";
 import { blockingCap, capReachedCopy, gateFromSnapshot, unpausePendingCopy } from "./boxStatusRead";
 import { canAdvanceFromConfigure, canConfirmReview, initialFlowState } from "./flowState";
 import {
@@ -302,6 +302,12 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
   assert.equal(orangeLive.outputBlocked, false);
   assert.match(orangeLive.estimatedReceive, /\$95\.00 in WBTC/);
   assert.match(orangeLive.outputNote, /not a pool quote/);
+  assert.equal(reviewReceiveLine(BOX_BY_ID.orange, orangeLive), orangeLive.estimatedReceive);
+  assert.match(reviewReceiveLine(BOX_BY_ID.red, live), /Catalogue preview/);
+  assert.equal(
+    reviewReceiveLine(BOX_BY_ID.purple, orangeLive, "NFTs of similar value"),
+    "NFTs of similar value",
+  );
   assert.equal(orangeLive.label.includes("pool quote"), true);
 
   const orangeBlocked = buildSimulatedQuote(BOX_BY_ID.orange, orange, issuedAt, {
@@ -316,6 +322,7 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
     prices: { ETH: 2000, USDC: 1 },
   });
   assert.match(mystery.estimatedReceive, /random output/);
+  assert.match(reviewReceiveLine(BOX_BY_ID.mystery, mystery), /random/);
   assert.equal(mystery.outputBlocked, false);
 
   const now = 1_700_000_000;

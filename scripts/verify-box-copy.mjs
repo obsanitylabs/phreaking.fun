@@ -66,6 +66,7 @@ assert.match(copy, /WHITE_PANEL_MIN_FONT_PX = 14/);
 assert.match(panel, /fontSize: `\$\{minFontPx\}px`/);
 assert.match(panel, /data-min-font-px=\{minFontPx\}/);
 assert.match(panel, /data-testid="white-verbatim-text"/);
+assert.ok(review.includes("reviewReceiveLine"));
 assert.ok(review.includes('box.id === "rainbow"'));
 assert.ok(review.includes("possibleOutputs"));
 assert.ok(app.includes("SepoliaBanner"));

@@ -1,4 +1,5 @@
 import type { BoxDefinition } from "@/components/design/boxFlows/types";
+import type { SimulatedQuote } from "./quoteModel";
 import {
   IRREVERSIBLE_HEADING,
   MYSTERY_ACKNOWLEDGEMENT,
@@ -105,6 +106,28 @@ export function reviewDisclosure(box: BoxDefinition): ReviewDisclosure {
     extraWarnings: [],
     acknowledgement: box.requiresAcknowledgement ? box.acknowledgement : undefined,
   };
+}
+
+/**
+ * Review must repeat the quote the user just saw. A catalogue asset list would
+ * disagree with the live spot line. Random, match, and position boxes keep
+ * their disclosure copy.
+ */
+export function reviewReceiveLine(
+  box: BoxDefinition,
+  quote: SimulatedQuote | null | undefined,
+  override?: string,
+): string {
+  if (override) return override;
+  if (
+    quote &&
+    (quote.outputBlocked ||
+      quote.outputNote.includes("not a pool") ||
+      quote.outputNote.includes("not a live pool"))
+  ) {
+    return quote.estimatedReceive;
+  }
+  return reviewDisclosure(box).youReceive;
 }
 
 export function reviewWarnings(box: BoxDefinition): string[] {
