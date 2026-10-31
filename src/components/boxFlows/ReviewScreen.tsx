@@ -5,7 +5,7 @@ import type { BoxDefinition } from "@/components/design/boxFlows/types";
 import { CONFIRM_FINE_PRINT } from "./copy";
 import { QuotePanel } from "./QuotePanel";
 import type { SimulatedQuote } from "./quoteModel";
-import { reviewDisclosure, reviewWarnings } from "./reviewModel";
+import { reviewDisclosure, reviewReceiveLine, reviewWarnings } from "./reviewModel";
 import { WhiteVerbatimPanel } from "./WhiteVerbatimPanel";
 
 export interface ReviewAsset {
@@ -85,7 +85,7 @@ export function ReviewScreen({
         </p>
         <div className="mt-1 border border-white/15 px-3 py-2 text-xs">
           <p className="text-white" data-testid="you-receive-line">
-            {youReceiveOverride ?? disclosure.youReceive}
+            {reviewReceiveLine(box, quote, youReceiveOverride)}
           </p>
           {disclosure.similarValue && (
             <p className="mt-2 text-[12px] text-white/70" data-testid="similar-value">

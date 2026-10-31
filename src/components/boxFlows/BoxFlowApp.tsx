@@ -74,7 +74,11 @@ const PRICES: Record<string, number> = {
   WBTC: 63120,
 };
 
-function sendRows(box: BoxDefinition, state: FlowState) {
+function sendRows(
+  box: BoxDefinition,
+  state: FlowState,
+  prices: Partial<Record<string, number>> = PRICES,
+) {
   if (box.id === "purple" && purpleMode(state.toggles) === "nft-to-alt") {
     return state.selectedNfts.length === 0
       ? []
@@ -100,7 +104,10 @@ function sendRows(box: BoxDefinition, state: FlowState) {
     .map((row) => ({
       symbol: row.token,
       amount: row.amount,
-      usd: formatUsd((PRICES[row.token] ?? 0) * Number(row.amount)),
+      usd:
+        prices[row.token] === undefined
+          ? "Spot read required"
+          : formatUsd((prices[row.token] ?? 0) * Number(row.amount)),
     }));
 }
 
@@ -412,10 +419,10 @@ export function BoxFlowApp() {
         Production flow shell. Quotes on this page are a labelled 60-second
         simulator. Pause and cap read the Sepolia fleet when an address is
         configured. Checkered has no counterparty pool and Russian Flag does not
-        open a GMX position. Deposit and known output value can use a Sepolia
-        Chainlink spot read. Blue and Green use that same read. Red stays a
-        whole-token preview. That read is not a pool quote. Confirm does not
-        open a wallet or broadcast.
+        open a GMX position. Deposit, review, and known output value use the
+        same Sepolia Chainlink spot read. Blue and Green use that same read.
+        Red stays a whole-token preview. That read is not a pool quote. Confirm
+        does not open a wallet or broadcast.
       </p>
       {TOOLKITS.map((toolkit) => (
         <section key={toolkit.id} className="mt-8" aria-labelledby={`toolkit-${toolkit.id}`}>
@@ -542,7 +549,11 @@ export function BoxFlowApp() {
               {state.step === "review" && (
                 <ReviewScreen
                   box={selected}
-                  sendRows={sendRows(selected, state)}
+                  sendRows={sendRows(
+                    selected,
+                    state,
+                    quote?.spotSource === "chainlink" ? quote.prices : undefined,
+                  )}
                   route={quote?.route ?? selected.demo.route}
                   quote={quote}
                   onRefreshQuote={refreshQuote}
