@@ -11,6 +11,13 @@ import {
 } from "@/components/design/boxFlows/catalog";
 import type { BoxDefinition, BoxId } from "@/components/design/boxFlows/types";
 import {
+  capReachedCopy,
+  gateFromSnapshot,
+  readBoxStatus,
+  statusLine,
+  type BoxStatusSnapshot,
+} from "./boxStatusRead";
+import {
   BLUE_BAND_COPY,
   CAP_REACHED_COPY,
   FINALITY_KEEP_OPEN,
@@ -28,6 +35,7 @@ import {
   initialFlowState,
   signBlockedReason,
   stagesFor,
+  type CapKind,
   type FlowState,
   type GateKind,
 } from "./flowState";
@@ -71,13 +79,25 @@ function sendRows(box: BoxDefinition, state: FlowState) {
     }));
 }
 
-function GateBanner({ gate }: { gate: GateKind }) {
+function GateBanner({
+  gate,
+  capKind,
+  notice,
+}: {
+  gate: GateKind;
+  capKind: CapKind | null;
+  notice: string | null;
+}) {
   if (gate === "none") return null;
   const copy =
     gate === "paused"
-      ? PAUSED_COPY
+      ? notice && notice.startsWith("Paused. Unpause")
+        ? notice
+        : PAUSED_COPY
       : gate === "cap"
-        ? CAP_REACHED_COPY
+        ? capKind
+          ? capReachedCopy(capKind)
+          : CAP_REACHED_COPY
         : gate === "wrong-network"
           ? WRONG_NETWORK_COPY
           : STAKING_LOCKED_COPY;
@@ -97,12 +117,94 @@ export function BoxFlowApp() {
   const [state, setState] = useState<FlowState | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [status, setStatus] = useState<BoxStatusSnapshot | null>(null);
+  const [chainId, setChainId] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
 
   const selected = selectedId ? BOX_BY_ID[selectedId] : null;
+
+  useEffect(() => {
+    const ethereum = (
+      window as Window & { ethereum?: { chainId?: string; request?: (args: { method: string }) => Promise<string> } }
+    ).ethereum;
+    if (!ethereum) return;
+    let cancelled = false;
+    const apply = (hex: string) => {
+      const next = Number.parseInt(hex, 16);
+      if (!cancelled && Number.isFinite(next)) setChainId(next);
+    };
+    if (ethereum.chainId) apply(ethereum.chainId);
+    ethereum.request?.({ method: "eth_chainId" }).then(apply).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selected) {
+      setStatus(null);
+      return;
+    }
+    let cancelled = false;
+    setStatus(null);
+    readBoxStatus({ boxId: selected.id, search: window.location.search }).then((snapshot) => {
+      if (cancelled) return;
+      setStatus(snapshot);
+      setState((current) => {
+        if (!current || current.gate === "locked") return current;
+        if (current.gate === "wrong-network" && snapshot.source !== "contract") return current;
+        if (snapshot.source === "error") {
+          return {
+            ...current,
+            gate: "paused",
+            capKind: null,
+            notice: PAUSED_COPY,
+          };
+        }
+        if (snapshot.source !== "contract") {
+          return {
+            ...current,
+            notice: current.notice ?? snapshot.note,
+          };
+        }
+        const live = gateFromSnapshot(snapshot);
+        if (live.gate === "paused" || live.gate === "cap") {
+          return {
+            ...current,
+            gate: live.gate,
+            capKind: live.capKind,
+            notice: live.notice,
+          };
+        }
+        if (current.gate === "paused" || current.gate === "cap") {
+          return { ...current, gate: "none", capKind: null, notice: statusLine(snapshot) };
+        }
+        return { ...current, notice: current.notice ?? statusLine(snapshot) };
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
+  useEffect(() => {
+    if (!selectedId || !state) return;
+    if (state.gate === "locked") return;
+    if (chainId !== null && chainId !== 11155111) {
+      if (state.gate !== "wrong-network") {
+        patch({ gate: "wrong-network", capKind: null, notice: WRONG_NETWORK_COPY });
+      }
+      return;
+    }
+    if (state.gate === "wrong-network" && chainId === 11155111) {
+      patch({ gate: "none", capKind: null, notice: null });
+    }
+    // Only the chain id and the current gate should retrigger this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chainId, selectedId, state?.gate]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -210,7 +312,8 @@ export function BoxFlowApp() {
         Pick a box. Read the review before you sign.
       </h1>
       <p className="mt-2 max-w-2xl text-xs leading-relaxed text-white/50">
-        Production flow shell. Quotes on this page are simulated. Confirm does not
+        Production flow shell. Quotes on this page are simulated. Pause and cap
+        read the Sepolia fleet when an address is configured. Confirm does not
         open a wallet or broadcast a transaction.
       </p>
       {TOOLKITS.map((toolkit) => (
@@ -315,7 +418,16 @@ export function BoxFlowApp() {
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-              <GateBanner gate={state.gate} />
+              <GateBanner gate={state.gate} capKind={state.capKind} notice={state.notice} />
+              {status && (
+                <p
+                  data-testid="box-status-source"
+                  data-source={status.source}
+                  className="text-[10px] uppercase tracking-widest text-white/40"
+                >
+                  {statusLine(status)}
+                </p>
+              )}
 
               {state.step === "configure" && (
                 <ConfigureStep
@@ -611,7 +723,13 @@ function ConfigureStep({
             key={gate}
             type="button"
             data-testid={`set-gate-${gate}`}
-            onClick={() => onChange({ gate })}
+            onClick={() =>
+              onChange({
+                gate,
+                capKind: gate === "cap" ? "tx" : null,
+                notice: gate === "none" ? null : undefined,
+              })
+            }
             className="border border-white/15 px-2 py-1 text-[10px] uppercase tracking-widest text-white/50 focus:outline-none focus:ring-2 focus:ring-white"
           >
             {label}

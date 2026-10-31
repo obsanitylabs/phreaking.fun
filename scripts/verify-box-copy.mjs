@@ -89,4 +89,18 @@ assert.ok(flowText.includes("https://sepolia.etherscan.io/"));
 assert.ok(!result.includes('href="#"'));
 assert.ok(!result.includes("javascript:"));
 
-console.log("box copy snapshot ok: 15 boxes, Rainbow disclosure, White 14px panel");
+const statusRead = readFileSync(join(root, "src/components/boxFlows/boxStatusRead.ts"), "utf8");
+assert.ok(copy.includes("This box is paused by the guardian. No new deposits."));
+assert.ok(copy.includes("Paused. Unpause is timelocked until "));
+assert.ok(copy.includes("This box has reached its tx cap. Try a smaller amount or another box."));
+assert.ok(statusRead.includes("This box has reached its ${label} cap."));
+assert.ok(statusRead.includes('return "tx"'));
+assert.ok(statusRead.includes('return "var"'));
+assert.ok(statusRead.includes('return "wallet"'));
+assert.ok(statusRead.includes("stateMutability") === false);
+assert.ok(app.includes("readBoxStatus"));
+assert.ok(app.includes("gateFromSnapshot"));
+assert.ok(!app.includes("walletClient"));
+assert.ok(!app.includes("writeContract"));
+
+console.log("box copy snapshot ok: 15 boxes, Rainbow disclosure, White 14px panel, pause/cap reads");
