@@ -67,6 +67,32 @@ disclosed in §3a, and no role in it can move user funds.
 | Staged cap increases | Each increase requires: (a) ≥7 consecutive days clean operating window, (b) CISO sign-off on incident log = zero severity-1/2 events, (c) CEO approval in writing. Cap increases are incremental (≤50% of current), never to the full unlimited state before G5. | CFO proposes / CEO approves | Procedure defined here; amounts pending |
 | Public disclosure language | "The phreaking.fun smart contracts have been internally reviewed by the development team but not yet audited by an independent firm. Total user value is capped at $[CAP] per board policy, and caps will remain until an external audit is complete." — must appear on site before first mainnet tx. | CISO + Legal (if any) | Language drafted; publish before go-live |
 
+### §3.1 Cap semantics and enforcement (OBS-320)
+
+**Per-contract cap semantics.** `VAR_CAP_USD`, `TX_CAP_USD` and `WALLET_CAP_USD` are applied **per box contract**
+(17 variants), not fleet-wide: each of the 17 boxes carries its own total-value-at-risk cap, per-transaction cap
+and per-wallet cap, set from the same CFO-signed env values by `Deploy.s.sol`. The **fleet aggregate exposure is
+therefore `17 x VAR_CAP_USD`** (plus referral-program exposure, capped separately by `REFERRAL_MAX_SUPPLY`).
+The board's "$0 treasury-backed cap" intent **cannot** be expressed as `VAR_CAP_USD=0`: on-chain, a cap of `0`
+means **unlimited** (`MysteryBoxBase._checkDepositCaps` skips zero caps), so `0` would deploy an unbounded
+fleet. **Never use `0` caps on mainnet.**
+
+**Deploy-time hard-fail.** `Deploy.s.sol` captures `block.chainid` and hard-fails any **non-Sepolia** deploy
+(e.g. mainnet, chainId 1) where any of the three caps is unset, with error
+`DEPLOY ABORT: non-Sepolia deploy with cap(s) unset - cap 0 = UNLIMITED on-chain; set VAR_CAP_USD / TX_CAP_USD / WALLET_CAP_USD`.
+Sepolia (`11155111`) keeps the warn-but-proceed behaviour for test deployments. Enforced by
+`contracts/test/DeployChainGuard.t.sol` (revert-on-mainnet / proceed-on-Sepolia / proceed-on-mainnet-with-caps-set).
+
+**Two enforceable mainnet no-funds mechanisms.** To launch mainnet with **no** funds at risk, either:
+
+1. **Do not deploy** — the fleet is not on mainnet, so no contract can receive funds; or
+2. **Deploy with pools/executor unconfigured** — leave the token registry pools unconfigured and the executor
+   unset, so `registry.canUse` (and the executor-not-set revert) revert **every deposit** on every box. With no
+   deposit path accepted on-chain, the fleet can hold no user funds while the multisig completes configuration.
+
+Both are enforceable on-chain without relying on frontend gating; pick one explicitly and record it in §3 before
+the mainnet broadcast.
+
 ### 3a. Real privileged surface (disclosed)
 
 The rebuilt fleet is **non-upgradeable** (`BoxTokenRegistry.sol:9`, `TokenPricer.sol:11`) and contains **no path by which any privileged role can move user funds**. The complete admin surface, which the CISO must weigh, is:

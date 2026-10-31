@@ -598,6 +598,9 @@ contract DeployScriptTest is Test {
         vm.setEnv("TX_CAP_USD", "0");
         vm.setEnv("WALLET_CAP_USD", "0");
 
+        // Caps are unset, so this full-run scenario must emulate Sepolia (11155111):
+        // the OBS-320 chain-id guard hard-fails any non-Sepolia deploy with caps unset.
+        vm.chainId(11155111);
         vm.recordLogs();
         new DeployPhreaking().run();
         Vm.Log[] memory logs = vm.getRecordedLogs();
