@@ -10,6 +10,7 @@ import {
   aggregateDeposits,
   failedTxRate,
   resolveBoxes,
+  onchainOverlay,
   DEPOSIT_EVENT,
 } from "./onchainOverlay.mjs";
 import { encodeEventTopics, encodeAbiParameters } from "viem";
@@ -203,4 +204,49 @@ test("resolveBoxes: env override keeps only valid addresses; default fleet witho
       '{"mystery":"0x30bbe3c4942a74B3EFFdFe1b6157A46a7C0EAdf5","bad":"0xnope"}',
   });
   assert.deepEqual(Object.keys(o), ["mystery"]);
+});
+
+test("onchainOverlay: pruned getLogs chunks are skipped; full failure degrades to read-failed", async () => {
+  const boxes = { mystery: "0x30bbe3c4942a74B3EFFdFe1b6157A46a7C0EAdf5" };
+  const err = Object.assign(new Error("pruned history unavailable"), {
+    shortMessage: "pruned history unavailable",
+  });
+  const makeClient = (failAll) => ({
+    readContract: async () => {
+      throw err;
+    },
+    getBlockNumber: async () => 11_900_000,
+    getLogs: async () => {
+      if (failAll) throw err;
+      return [];
+    },
+    getBlock: async () => ({ transactions: [] }),
+  });
+  // all getLogs chunks fail -> explicit read-failed deposits, never fabricated
+  const all = await onchainOverlay(makeClient(true), {
+    boxes,
+    days: 30,
+    scanBlocks: 2,
+  });
+  assert.equal(all.deposits.error, "read-failed");
+  assert.match(all.deposits.message, /pruned history unavailable/);
+  assert.deepEqual(all.failedTx, {
+    rate: null,
+    note: "no transactions to box contracts in scan window",
+  });
+  // partial failure (first call throws, rest succeed) -> depositsRead notes partial coverage
+  let first = true;
+  const partial = {
+    ...makeClient(false),
+    getLogs: async () => {
+      if (first) {
+        first = false;
+        throw err;
+      }
+      return [];
+    },
+  };
+  const p = await onchainOverlay(partial, { boxes, days: 30, scanBlocks: 2 });
+  assert.equal(p.deposits.error, undefined);
+  assert.match(p.depositsRead.note, /chunks failed/);
 });

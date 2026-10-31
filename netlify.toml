@@ -12,6 +12,11 @@
 [functions]
   node_bundler = "esbuild"
 
+# OBS-303 — the insights function computes the Sepolia on-chain overlay live
+# (contract reads + chunked getLogs + bounded block scan); needs >10s.
+[functions."insights"]
+  timeout = 30
+
 [[headers]]
   for = "/api/*"
   [headers.values]

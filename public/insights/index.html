@@ -214,13 +214,17 @@
             "</span></p>";
           return;
         }
-        const dep = Object.entries(oc.deposits || {}).map(([box, s]) => [
-          box,
-          s.count,
-          s.native + " ETH",
-          s.erc20Transfers,
-          s.erc20Tokens ?? "—",
-        ]);
+        const dep =
+          oc.deposits && oc.deposits.error
+            ? // full deposit-read failure degrades explicitly — no fabricated aggregates
+              []
+            : Object.entries(oc.deposits || {}).map(([box, s]) => [
+                box,
+                s.count,
+                s.native + " ETH",
+                s.erc20Transfers,
+                s.erc20Tokens ?? "—",
+              ]);
         const pause = Object.entries(oc.pauseState || {}).map(([name, s]) =>
           s.error
             ? // read-failed boxes degrade explicitly — never fabricated "live" state
@@ -239,9 +243,22 @@
             ...pause,
           ]) +
           table([
-            ["box", "deposits", "native volume", "erc20 transfers", "erc20 tokens"],
+            [
+              "box",
+              "deposits",
+              "native volume",
+              "erc20 transfers",
+              "erc20 tokens",
+            ],
             ...dep,
           ]) +
+          (oc.deposits && oc.deposits.error
+            ? '<p><span class="err">deposit read failed: ' +
+              (oc.deposits.message || "—") +
+              "</span></p>"
+            : oc.depositsRead && oc.depositsRead.note
+              ? "<p><small>" + oc.depositsRead.note + "</small></p>"
+              : "") +
           "<p>failed-tx rate (last " +
           oc.failedTxScanBlocks +
           " blocks): <strong>" +

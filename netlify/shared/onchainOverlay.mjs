@@ -205,21 +205,49 @@ export async function onchainOverlay(
 
   // DepositReceived logs over the requested window. Sepolia slots are ~12s, so the
   // block span is days*7200; the range is chunked to stay inside public-RPC getLogs caps.
+  // Nodes prune history: failed chunks (e.g. "pruned history unavailable") are skipped
+  // and reported — never fabricated, and a full read failure degrades to an explicit error.
   const latest = Number(await client.getBlockNumber());
   const from = Math.max(0, latest - Math.ceil((days * 86400) / 12));
   const logs = [];
+  let chunksRequested = 0;
+  let chunksFailed = 0;
+  let firstFailure = null;
   for (const addr of addresses) {
     for (let start = from; start <= latest; start += GET_LOGS_CHUNK_BLOCKS) {
       const end = Math.min(start + GET_LOGS_CHUNK_BLOCKS - 1, latest);
-      logs.push(
-        ...(await client.getLogs({
-          address: addr,
-          event: DEPOSIT_EVENT,
-          fromBlock: BigInt(start),
-          toBlock: BigInt(end),
-        })),
-      );
+      chunksRequested += 1;
+      try {
+        logs.push(
+          ...(await client.getLogs({
+            address: addr,
+            event: DEPOSIT_EVENT,
+            fromBlock: BigInt(start),
+            toBlock: BigInt(end),
+          })),
+        );
+      } catch (e) {
+        chunksFailed += 1;
+        firstFailure ||= String((e && e.shortMessage) || e.message || e);
+      }
     }
+  }
+  if (chunksFailed === chunksRequested) {
+    return {
+      source: "sepolia-rpc",
+      windowDays: days,
+      failedTxScanBlocks: scanBlocks,
+      anyPaused: Object.values(pauseState).some((s) => s.paused),
+      pauseState,
+      deposits: { error: "read-failed", message: firstFailure },
+      failedTx: failedTxRate({ attempted: 0, failed: 0 }),
+      revenue: null,
+      feesNote:
+        "prototype contracts are deposit-forward; no on-chain fee/revenue accounting to report",
+      transfers: null,
+      transfersNote:
+        "no collection-transfer events in the Sepolia prototype fleet; reported when the indexer emits them",
+    };
   }
   // Key deposits by friendly box name (falls back to the public contract address).
   const nameOf = {};
@@ -268,6 +296,13 @@ export async function onchainOverlay(
     anyPaused: Object.values(pauseState).some((s) => s.paused),
     pauseState,
     deposits,
+    depositsRead:
+      chunksFailed > 0
+        ? {
+            note: `${chunksFailed}/${chunksRequested} getLogs chunks failed (pruned RPC history) — deposit aggregates cover the remaining window only`,
+            firstFailure,
+          }
+        : { note: "full window read" },
     failedTx: failedTxRate({ attempted, failed }),
     // No fee/revenue accounting exists in the Sepolia prototype contracts (deposit-forward
     // design, per OBS-129/OBS-184 remediation): reported as null rather than derived.
