@@ -3,7 +3,7 @@
 // access-logged with scope/product, timestamp, masked-IP hash, UA family, row count.
 // GC: rate-limit IP hash (72h) never appears here; no email-hash columns exported.
 import { storeList, storePut } from '../shared/store.mjs';
-import { authScope, authFailure, scopeAllows } from '../shared/auth.mjs';
+import { authScope, scopeAllows } from '../shared/auth.mjs';
 import { maskIp, ipHash, uaFamily, dayKey, daysBetween, PENDING_TTL_DAYS } from '../shared/util.mjs';
 
 const CSV_COLUMNS = ['product', 'email', 'status', 'consented_at', 'verified_at', 'unsubscribed_at',
@@ -14,10 +14,24 @@ import { respond, header, clientIp } from '../shared/util.mjs';
 
 const handler = async (req, context) => {
   const scope = authScope(req, 'WAITLIST_EXPORT_TOKEN');
-  if (!scope) return authFailure();
-  if (req.method !== 'GET') return authFailure();
+  if (!scope) {
+    return {
+      status: 401,
+      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+      body: JSON.stringify({ error: 'unauthorized' }),
+    };
+  }
+  if (req.method !== 'GET') return {
+    status: 401,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+    body: JSON.stringify({ error: 'unauthorized' }),
+  };
   const want = new URL(req.url).searchParams.get('product') || null;
-  if (scope !== '*' && want !== scope) return authFailure();
+  if (scope !== '*' && want !== scope) return {
+    status: 401,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+    body: JSON.stringify({ error: 'unauthorized' }),
+  };
 
   const signups = await storeList(context, 'signup:');
   const rows = [];
