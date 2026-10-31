@@ -17,6 +17,7 @@ contract OrangeBox is MysteryBoxBase {
 
     function _executeSwap(address user, address tokenIn, uint256 amount, uint256 valueUsd1e8) internal override returns (address tokenOut) {
         require(address(executor) != address(0), "OrangeBox: executor not set");
-        return _dispatchToExecutor(user, tokenIn, amount, valueUsd1e8);
+        tokenOut = _dispatchToExecutor(user, tokenIn, amount, valueUsd1e8);
+        require(tokenOut != address(0), "OrangeBox: no output token returned");
     }
 }
