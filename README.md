@@ -235,7 +235,11 @@ npm run lint         # Linting with ESLint
 npm run lint:fix     # Automatic lint fix
 npm run format       # Formatting with Prettier
 npm run format:check # Format verification
+npm test             # Box-flow node:test suite (src/**/*.test.ts via tsx)
+npm run test:box-copy # Text-grep snapshot in scripts/verify-box-copy.mjs
 ```
+
+`npm test` runs `src/components/boxFlows/copy.test.ts` with Node's built-in test runner and `tsx`, so TypeScript and the `@/` path alias resolve. GitHub Actions (`.github/workflows/test.yml`) runs `npm test` and `npm run test:box-copy` on push and pull request. The snapshot script checks that copy strings still appear in source; the node:test suite checks the review, quote, pause, and cap helpers.
 
 ### **Deploy**
 
