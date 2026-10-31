@@ -3,16 +3,39 @@ pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {MysteryBox} from "../src/MysteryBox.sol";
+import {MysteryBoxBase} from "../src/MysteryBoxBase.sol";
 import {BoxTokenRegistry} from "../src/BoxTokenRegistry.sol";
 import {TokenPricer} from "../src/TokenPricer.sol";
 import {ITokenPricer} from "../src/interfaces/ITokenPricer.sol";
+import {DualQuote} from "./PriceSources.sol";
 import {IBoxExecutor} from "../src/interfaces/IBoxExecutor.sol";
 import {WhiteBox} from "../src/WhiteBox.sol";
 
+/// @dev Variant that forgets to forward native value. deposit() must revert so ETH cannot stick.
+contract NonForwardingBox is MysteryBoxBase {
+    constructor(BoxTokenRegistry registry_, ITokenPricer pricer_, address admin) MysteryBoxBase(registry_, pricer_, admin) {}
+
+    function boxType() public pure override returns (BoxTokenRegistry.BoxType) {
+        return BoxTokenRegistry.BoxType.MYSTERY;
+    }
+
+    function _executeSwap(address, address, uint256, uint256) internal pure override returns (address tokenOut) {
+        return address(0xDD);
+    }
+}
+
 contract MockExecutor is IBoxExecutor {
     address public tokenOut;
+    bool public sweepNative;
     function setOutput(address _t) external { tokenOut = _t; }
-    function execute(address, address, address, uint256, uint256) external payable returns (address) { return tokenOut; }
+    function setSweepNative(bool sweep) external { sweepNative = sweep; }
+    function execute(address, address, address tokenIn, uint256 amount, uint256) external payable returns (address) {
+        if (sweepNative && tokenIn == address(0)) {
+            require(msg.value == amount, "executor: value mismatch");
+        }
+        return tokenOut;
+    }
+    receive() external payable {}
 }
 
 /// @dev Executor that ACTUALLY settles: pulls ERC20 deposits from the box (pull model), accepts
@@ -76,6 +99,7 @@ contract MockToken {
 abstract contract MysteryBoxBaseTest is Test {
     BoxTokenRegistry registry;
     TokenPricer pricer;
+    DualQuote quotes;
     MockExecutor executor;
     MysteryBox box;
     address admin = address(0xAA);
@@ -87,7 +111,8 @@ abstract contract MysteryBoxBaseTest is Test {
 
     function setUp() external virtual {
         registry = new BoxTokenRegistry(admin);
-        pricer = new TokenPricer(admin);
+        quotes = new DualQuote();
+        pricer = quotes.deploy(admin, admin, address(quotes));
         executor = new MockExecutor();
         box = new MysteryBox(registry, pricer, admin);
         tokenIn = address(new MockToken());
@@ -97,7 +122,7 @@ abstract contract MysteryBoxBaseTest is Test {
         box.setExecutor(address(executor));
         registry.registerToken(tokenIn, 18);
         registry.setPoolMembership(BoxTokenRegistry.BoxType.MYSTERY, tokenIn, true);
-        pricer.setPrice(tokenIn, 2000 * 1e8, 18);
+        quotes.quote(tokenIn, 2000 * 1e8, 18);
         vm.stopPrank();
     }
 
@@ -151,6 +176,25 @@ contract PauseUnpauseTest is MysteryBoxBaseTest {
         vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("ExpectedPause()"))));
         box.queueUnpause();
         assertEq(box.unpauseReleaseAt(), 0);
+    }
+
+    function test_Pause_CancelsQueuedUnpause() public {
+        vm.prank(guardian);
+        box.pause();
+        vm.prank(guardian);
+        box.queueUnpause();
+        assertGt(box.unpauseReleaseAt(), 0);
+
+        // A new emergency pause must invalidate the pending lift, or releaseUnpause
+        // can unpause after the original delay even though the incident is still open.
+        vm.prank(guardian);
+        box.pause();
+        assertEq(box.unpauseReleaseAt(), 0);
+
+        skip(24 hours);
+        vm.expectRevert("MysteryBoxBase: nothing queued");
+        box.releaseUnpause();
+        assertTrue(box.paused());
     }
 
     bytes32 constant GUARDIAN_ROLE = keccak256("GUARDIAN");
@@ -280,6 +324,15 @@ contract DepositFlowTest is MysteryBoxBaseTest {
         address out = box.deposit(2 ether, tokenIn);
         assertEq(out, address(0xDD));
     }
+
+    function test_Deposit_EmitsDepositReceived() public {
+        executor.setOutput(address(0xDD));
+        _approveAndFund(user, 1 ether);
+        vm.expectEmit(true, true, false, true);
+        emit MysteryBoxBase.DepositReceived(user, tokenIn, 1 ether);
+        vm.prank(user);
+        box.deposit(1 ether, tokenIn);
+    }
 }
 
 contract NativeEtherDepositTest is MysteryBoxBaseTest {
@@ -289,16 +342,18 @@ contract NativeEtherDepositTest is MysteryBoxBaseTest {
         vm.startPrank(admin);
         registry.registerToken(address(0), 18);
         registry.setPoolMembership(BoxTokenRegistry.BoxType.MYSTERY, address(0), true);
-        pricer.setPrice(address(0), 2000 * 1e8, 18); // $2000/whole ETH — symmetric with tokenIn for cap tests.
+        quotes.quote(address(0), 2000 * 1e8, 18); // $2000/whole ETH — symmetric with tokenIn for cap tests.
         vm.stopPrank();
     }
 
     function test_NativeEth_Deposit_Succeeds() public {
         _prepareNative();
         executor.setOutput(address(0xDD));
+        executor.setSweepNative(true);
         vm.prank(user);
         address out = box.deposit{value: 1 ether}(1 ether, address(0));
         assertEq(out, address(0xDD));
+        assertEq(address(box).balance, 0);
         assertEq(box.totalValueAtRisk(), 2000 * 1e8);
         assertEq(box.walletDeposited(user), 2000 * 1e8);
     }
@@ -320,6 +375,38 @@ contract NativeEtherDepositTest is MysteryBoxBaseTest {
         vm.expectRevert("MysteryBoxBase: tx cap exceeded");
         vm.prank(user);
         box.deposit{value: 1 ether}(1 ether, address(0));
+    }
+
+    function test_NativeEth_StrandedIfNotForwarded_Reverts() public {
+        // A variant that returns an output token but never sends msg.value onward must not
+        // complete the deposit. The revert rolls the ETH and the cap accounting back.
+        _prepareNative();
+        NonForwardingBox stuck = new NonForwardingBox(registry, pricer, admin);
+        vm.prank(user);
+        vm.expectRevert("MysteryBoxBase: native not forwarded");
+        stuck.deposit{value: 1 ether}(1 ether, address(0));
+        assertEq(address(stuck).balance, 0);
+        assertEq(stuck.totalValueAtRisk(), 0);
+    }
+
+    function test_NativeEth_ExecutorSweep_Succeeds() public {
+        _prepareNative();
+        executor.setOutput(address(0xDD));
+        executor.setSweepNative(true);
+        vm.prank(user);
+        address out = box.deposit{value: 1 ether}(1 ether, address(0));
+        assertEq(out, address(0xDD));
+        assertEq(address(box).balance, 0);
+        assertEq(box.totalValueAtRisk(), 2000 * 1e8);
+    }
+
+    function test_Erc20Deposit_RejectsAttachedValue() public {
+        executor.setOutput(address(0xDD));
+        _approveAndFund(user, 1 ether);
+        vm.deal(user, 1 ether);
+        vm.prank(user);
+        vm.expectRevert("MysteryBoxBase: unexpected value");
+        box.deposit{value: 1 ether}(1 ether, tokenIn);
     }
 
     function test_NativeEth_BareTransfer_NotAccepted() public {
@@ -348,6 +435,7 @@ contract NativeEtherDepositTest is MysteryBoxBaseTest {
         vm.stopPrank();
 
         executor.setOutput(address(0xEE));
+        executor.setSweepNative(true);
         vm.prank(user);
         address out = white.donate{value: 1 ether}(1 ether, address(0)); // native ETH donation
         assertEq(out, address(0xEE));
