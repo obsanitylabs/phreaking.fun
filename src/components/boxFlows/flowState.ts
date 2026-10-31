@@ -27,6 +27,12 @@ export interface FlowState {
   machine: "$1" | "$10" | "$100";
   stageIndex: number;
   signing: boolean;
+  /** Spec §6.6: HIDE collapses the overlay to a bar. It does not cancel execution. */
+  finalityHidden: boolean;
+  /** Blue §4: Review stays blocked until the ±1% offer is accepted. */
+  offerAccepted: boolean;
+  /** Green §4: an ineligible receipt blocks Review until it is removed. */
+  greenEligible: boolean;
 }
 
 export function defaultToggles(box: BoxDefinition): Record<string, string> {
@@ -50,6 +56,9 @@ export function initialFlowState(box: BoxDefinition): FlowState {
     machine: "$10",
     stageIndex: 0,
     signing: false,
+    finalityHidden: false,
+    offerAccepted: false,
+    greenEligible: true,
   };
 }
 
@@ -93,8 +102,31 @@ export function canAdvanceFromConfigure(box: BoxDefinition, state: FlowState): b
     return false;
   }
   if (state.gate === "locked" || box.status === "locked") return false;
+  if (box.flowKind === "portfolio-offer" && !state.offerAccepted) return false;
+  if (box.flowKind === "recycle" && !state.greenEligible) return false;
   if (box.assetMode === "wallet" || box.assetMode === "none") return true;
   return state.rows.some((row) => Number(row.amount) > 0);
+}
+
+/** Demo tx hash. The slice never broadcasts, so the explorer link stays on the Sepolia root. */
+export const DEMO_TX_HASH = "0xsepolia-demo-not-broadcast";
+
+export const DEMO_EXPLORER_URL = "https://sepolia.etherscan.io/";
+
+const TOKEN_LINK_SKIP = new Set(["USD SWEPT", "POSITION"]);
+
+export function coingeckoSearchUrl(symbol: string): string {
+  return `https://www.coingecko.com/en/search?query=${encodeURIComponent(symbol)}`;
+}
+
+export function dexscreenerSearchUrl(symbol: string): string {
+  return `https://dexscreener.com/search?q=${encodeURIComponent(symbol)}`;
+}
+
+export function resultShowsTokenLinks(box: BoxDefinition): boolean {
+  const primary = box.demo.assets[0];
+  if (!primary || TOKEN_LINK_SKIP.has(primary.symbol)) return false;
+  return Boolean(box.demo.coingecko || box.demo.dexscreener);
 }
 
 export function canConfirmReview(box: BoxDefinition, state: FlowState): boolean {

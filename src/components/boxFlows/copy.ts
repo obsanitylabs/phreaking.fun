@@ -51,3 +51,15 @@ export const SIGNATURE_CANCELLED = "Signature cancelled. Nothing was sent.";
 
 export const CONFIRM_FINE_PRINT =
   "By confirming, you authorise the transaction above. Token values can change before execution.";
+
+export const FINALITY_KEEP_OPEN =
+  "Keep this tab open. You can hide this panel; the transaction will continue.";
+
+export const TAKING_LONGER = "Taking longer than usual";
+
+export const REVERTED_COPY = "Transaction reverted. Your deposit was not taken.";
+
+export const GREEN_INELIGIBLE_COPY =
+  "This token does not meet the recycler criteria.";
+
+export const BLUE_BAND_COPY = "Slippage band ±1%. Accept the offer to continue.";
