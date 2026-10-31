@@ -169,6 +169,9 @@ export const SWEEP_VALUE_PREVIEW =
 export const RESULT_VALUE_PREVIEW =
   "Received value repeats the quote you just accepted. It is not a token amount or a pool fill.";
 
+export const POSITION_ENTRY_PREVIEW =
+  "Entry repeats the deposit you just accepted. No GMX position is opened.";
+
 export interface ResultAssetRow {
   symbol: string;
   amount: string;
@@ -202,6 +205,17 @@ export function resultAssetRows(
     quoted: false,
   }));
   if (box.resultKind === "harold-nft") return catalogue;
+  if (box.resultKind === "position") {
+    const entry = resultPositionEntry(quote?.depositUsd);
+    return [
+      {
+        symbol: "POSITION",
+        amount: entry.value,
+        usd: entry.value,
+        quoted: true,
+      },
+    ];
+  }
   if (!quote || outputValueKind(box) !== "value") return catalogue;
   const symbol = OUTPUT_SYMBOL[box.id] ?? box.demo.assets[0]?.symbol ?? "OUTPUT";
   if (quote.outputBlocked || quote.estimatedReceive === "Spot read required") {
@@ -235,4 +249,18 @@ export function resultSweepValue(depositUsd: string | null | undefined): {
 } {
   const value = depositUsd && depositUsd !== "Spot read required" ? depositUsd : "Sweep value unavailable";
   return { value, note: SWEEP_VALUE_PREVIEW };
+}
+
+/**
+ * Spec §6.3. Russian Flag prints the deposit the user just accepted as entry.
+ * A catalogue amount such as "$1,000.00" must not replace that quote.
+ * The line never claims a GMX position was opened.
+ */
+export function resultPositionEntry(depositUsd: string | null | undefined): {
+  value: string;
+  note: string;
+} {
+  const value =
+    depositUsd && depositUsd !== "Spot read required" ? depositUsd : "Entry unavailable";
+  return { value, note: POSITION_ENTRY_PREVIEW };
 }
