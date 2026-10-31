@@ -3,7 +3,13 @@
 import { Skull } from "lucide-react";
 import type { BoxDefinition, DemoResult } from "@/components/design/boxFlows/types";
 import { WHITE_BOX_PRODUCT_LINE } from "./copy";
-import { resultSweepValue, SWEEP_VALUE_PREVIEW } from "./reviewModel";
+import type { SimulatedQuote } from "./quoteModel";
+import {
+  resultAssetRows,
+  resultSweepValue,
+  RESULT_VALUE_PREVIEW,
+  SWEEP_VALUE_PREVIEW,
+} from "./reviewModel";
 import {
   coingeckoSearchUrl,
   DEMO_EXPLORER_URL,
@@ -47,14 +53,18 @@ function AssetLinks({ symbol, result }: { symbol: string; result: DemoResult }) 
 export function ResultScreen({
   box,
   depositUsd,
+  quote,
 }: {
   box: BoxDefinition;
   /** Deposit value from the quote the user just accepted. */
   depositUsd?: string | null;
+  /** Full quote so a known-output result cannot fall back to the catalogue. */
+  quote?: SimulatedQuote | null;
 }) {
   const result = box.demo;
   const showTokenLinks = resultShowsTokenLinks(box);
   const sweep = box.resultKind === "harold-nft" ? resultSweepValue(depositUsd) : null;
+  const received = resultAssetRows(box, quote);
 
   return (
     <div data-testid="result-step">
@@ -76,7 +86,7 @@ export function ResultScreen({
         <HaroldNftCard box={box} value={sweep.value} />
       ) : (
         <div className="mt-4 divide-y divide-white/10 border border-white/15">
-          {result.assets.map((asset) => (
+          {received.map((asset) => (
             <div
               key={`${asset.symbol}-${asset.amount}`}
               className="flex items-center justify-between gap-4 px-3 py-2"
@@ -89,8 +99,12 @@ export function ResultScreen({
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-terminal-green">{asset.amount}</p>
-                <p className="text-[10px] text-white/50">{asset.usd}</p>
+                <p className="text-sm text-terminal-green" data-testid={`received-amount-${asset.symbol}`}>
+                  {asset.amount}
+                </p>
+                <p className="text-[10px] text-white/50" data-testid={`received-usd-${asset.symbol}`}>
+                  {asset.usd}
+                </p>
               </div>
             </div>
           ))}
@@ -142,14 +156,26 @@ export function ResultScreen({
           {SWEEP_VALUE_PREVIEW}
         </p>
       )}
+      {received.some((asset) => asset.quoted) && (
+        <p className="mt-2 text-[11px] text-white/50" data-testid="result-value-note">
+          {RESULT_VALUE_PREVIEW}
+        </p>
+      )}
       {box.resultKind === "donation" && (
         <p className="mt-2 text-[11px] text-white/50">{WHITE_BOX_PRODUCT_LINE}</p>
       )}
 
       <div className="mt-4 grid gap-2 text-[11px] sm:grid-cols-2">
         {showTokenLinks &&
-          result.assets
-            .filter((asset) => asset.symbol !== "USD SWEPT" && asset.symbol !== "POSITION")
+          received
+            .filter(
+              (asset) =>
+                asset.symbol !== "USD SWEPT" &&
+                asset.symbol !== "POSITION" &&
+                asset.symbol !== "OFFER" &&
+                asset.symbol !== "SCREENED" &&
+                asset.symbol !== "NFT FLOOR",
+            )
             .map((asset) => (
               <AssetLinks key={asset.symbol} symbol={asset.symbol} result={result} />
             ))}

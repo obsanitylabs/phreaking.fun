@@ -636,7 +636,7 @@ export function BoxFlowApp() {
                 </p>
               )}
               {state.step === "result" && (
-                <ResultScreen box={selected} depositUsd={quote?.depositUsd} />
+                <ResultScreen box={selected} depositUsd={quote?.depositUsd} quote={quote} />
               )}
               {state.step === "error" && (
                 <div data-testid="error-step">
