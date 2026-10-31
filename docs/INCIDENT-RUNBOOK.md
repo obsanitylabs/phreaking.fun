@@ -1,6 +1,9 @@
 # phreaking.fun — Incident Runbook (Bounded-Launch Window)
 
-Status: REVISED 2026-10-31 by Senior Solidity Engineer per OBS-338 (rebuilt, non-upgradeable fleet). **DRAFT — CISO review/approval is the next step and is required before go-live; this document is not yet approved.** Originally prepared 2026-10-29 per OBS-129.
+Status: CISO **APPROVED WITH CONDITIONS** on [OBS-322](/OBS/issues/OBS-322) (conditions 1–3 tracked; not all closed — see below). This revision was **refreshed 2026-10-31** by Senior Solidity Engineer per OBS-338 to the rebuilt, non-upgradeable fleet and therefore **requires CISO re-approval** ([OBS-339](/OBS/issues/OBS-339)) because it changes text the CISO approved. **Not unconditionally approved — the CISO owns that language.** Originally prepared 2026-10-29 per OBS-129.
+- CISO condition 1 (fill the §6 guardian/backup/paging roster) is **pending board approval `fb22247f`**; the surrounding procedure is concrete below but the placeholders cannot be filled until that decides.
+- CISO condition 2 (a live, timed, human-executed Sepolia pause drill) is **not closed by this document**; it needs the broadcast path ([OBS-321](/OBS/issues/OBS-321)) and is tracked with the live drill, not the in-repo `FleetDrill` test.
+- CISO condition 3 (make-whole funding statement) is addressed in §5.
 Applies to the first 30 days of mainnet operation under bounded-launch caps (§ MAINNET-DEPLOYMENT-PACKAGE.md).
 
 Severity: S1 = user funds at risk / cap breach / privileged function exploited. S2 = contract paused unexpectedly, integration failure with fund impact potential. S3 = degraded functionality, no fund risk.
@@ -46,19 +49,21 @@ Within 24h of any S1/S2 (target same-day): post in the public channel — what h
 
 ## 5. Make whole
 
-There is **no on-chain reserve** today and none is planned for the bounded-launch window: the fleet holds only in-flight deposit value, and no privileged role can move it (§8). Make-whole is therefore an **off-chain, board-gated** process:
+With mainnet value-at-risk at **$0** and deposits disabled, **no make-whole outlay is expected before G5**. There is **no on-chain reserve** today and none is planned for the bounded-launch window: the fleet holds only in-flight deposit value, and no privileged role can move it (§8). Make-whole is therefore an **off-chain, board-gated** process:
 1. **Who pays / from where:** phreaking.fun company treasury — never contract funds, and never by touching a user's on-chain assets.
-2. **Board-approval step:** the CFO approves the affected-address/amount list and the total; the **CEO co-signs** any disbursement above `[THRESHOLD — set by CFO before go-live]` (two-person rule).
+2. **Board-approval step:** any treasury disbursement requires **CFO approval plus CEO sign-off at incident time** (two-person rule). The CFO approves the affected-address/amount list and the total.
 3. Engineering produces the affected-address/amount list from chain data; the record goes into a private incident ledger accessible to CISO + CEO only.
 4. Users are notified individually where contact info exists; otherwise a public notice of the remediation program.
 5. No user's on-chain assets are ever touched by the team as part of make-whole (pull-over-push).
 
 ## 6. On-call for first 30 days
 
-**Blocking board input — the runbook is executable only once these are filled (routed to Approvals in parallel):**
-- Primary guardian: `[NAMED GUARDIAN — assign before go-live]` — **BLOCKING**.
-- Backup: `[NAMED BACKUP]` — **BLOCKING**.
-- Paging: `[PAGING CHANNEL/TOOL]` — **BLOCKING**.
+**Blocking board input (CISO condition 1) — pending board approval `fb22247f`, which names the guardian, the backup and the paging channel. The runbook is executable only once these are filled:**
+- Primary guardian: `[NAMED GUARDIAN — assign before go-live]` — **BLOCKING, pending board approval `fb22247f`**.
+- Backup: `[NAMED BACKUP]` — **BLOCKING, pending board approval `fb22247f`**.
+- Paging: `[PAGING CHANNEL/TOOL]` — **BLOCKING, pending board approval `fb22247f`**.
+
+CISO condition 1 **cannot close** until `fb22247f` is answered and these three names land. The procedure below is concrete and executable as soon as they do.
 
 Procedure (concrete; runs once the names above are set):
 - **Coverage:** 24/7 rotating shifts of **8 hours**; written handover notes required at every shift change.

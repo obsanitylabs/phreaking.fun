@@ -105,7 +105,7 @@ The rebuilt fleet is **non-upgradeable** (`BoxTokenRegistry.sol:9`, `TokenPricer
 1. Rebuilt contracts (§8) deployed to fresh Sepolia addresses with guardian `pause()`; pause drill passed (step 5 below records timestamps).
 2. No privileged fund-movement path remains in any contract — by construction of the rebuild, admin capability is limited to the disclosed configuration surface (§3a), none of which moves user funds.
 3. CFO sets cap amounts; CEO signs §3.
-4. CISO approves `INCIDENT-RUNBOOK.md`.
+4. CISO approves `INCIDENT-RUNBOOK.md` — currently **approved with conditions** on OBS-322; the refreshed revision in this package awaits CISO re-approval ([OBS-339](/OBS/issues/OBS-339)).
 5. End-to-end pause drill executed live on Sepolia with named guardian, timed < 10 minutes from alert to paused state — record timestamp as evidence in OBS-129.
 6. Frontend gate lifted only by explicit board action at G5 or later; public disclosure text published (§3).
 
