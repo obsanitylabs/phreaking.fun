@@ -11,12 +11,17 @@ import {
 } from "@/components/design/boxFlows/catalog";
 import type { BoxDefinition, BoxId } from "@/components/design/boxFlows/types";
 import {
+  BLUE_BAND_COPY,
   CAP_REACHED_COPY,
+  FINALITY_KEEP_OPEN,
+  GREEN_INELIGIBLE_COPY,
   PAUSED_COPY,
+  REVERTED_COPY,
   SIGNATURE_CANCELLED,
   STAKING_LOCKED_COPY,
   WRONG_NETWORK_COPY,
 } from "./copy";
+import { FinalityOverlay } from "./FinalityOverlay";
 import {
   canAdvanceFromConfigure,
   canConfirmReview,
@@ -26,6 +31,7 @@ import {
   type FlowState,
   type GateKind,
 } from "./flowState";
+import { ResultScreen } from "./ResultScreen";
 import { ReviewScreen } from "./ReviewScreen";
 import { SepoliaBanner } from "./SepoliaBanner";
 
@@ -90,8 +96,11 @@ export function BoxFlowApp() {
   const [selectedId, setSelectedId] = useState<BoxId | null>(null);
   const [state, setState] = useState<FlowState | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const selected = selectedId ? BOX_BY_ID[selectedId] : null;
 
@@ -115,17 +124,19 @@ export function BoxFlowApp() {
 
   useEffect(() => {
     if (!selected) return;
-    const previous = document.activeElement;
-    if (previous instanceof HTMLElement) restoreRef.current = previous;
     const dialog = dialogRef.current;
-    const focusable = dialog?.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    focusable?.[0]?.focus();
+    const frame = window.requestAnimationFrame(() => {
+      const focusable = dialog?.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      const preferred =
+        dialog?.querySelector<HTMLElement>("[data-autofocus]") ?? focusable?.[0];
+      preferred?.focus();
+    });
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (state?.step === "finality") {
+        if (stateRef.current?.step === "finality") {
           event.preventDefault();
           return;
         }
@@ -133,36 +144,52 @@ export function BoxFlowApp() {
         return;
       }
       if (event.key !== "Tab" || !dialog) return;
-      const items = dialog.querySelectorAll<HTMLElement>(
+      const items = [...dialog.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
+      )].filter((item) => !item.hasAttribute("disabled"));
       if (items.length === 0) return;
       const first = items[0];
       const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      const active = document.activeElement;
+      if (!dialog.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (event.shiftKey && active === first) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && active === last) {
         event.preventDefault();
         first.focus();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => {
+      window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKey);
-      restoreRef.current?.focus();
     };
-  }, [selectedId]);
+  }, [selectedId, state?.step, state?.finalityHidden]);
+
+  useEffect(() => {
+    if (state?.step !== "finality" || reducedMotion) return;
+    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [state?.step, reducedMotion]);
 
   function openBox(box: BoxDefinition, trigger: HTMLElement | null) {
-    restoreRef.current = trigger;
+    openerRef.current = trigger;
+    setElapsed(0);
     setSelectedId(box.id);
     setState(initialFlowState(box));
   }
 
   function closeFlow() {
+    if (stateRef.current?.step === "finality") return;
+    const restore = openerRef.current;
     setSelectedId(null);
     setState(null);
+    window.requestAnimationFrame(() => restore?.focus());
   }
 
   function patch(partial: Partial<FlowState>) {
@@ -186,17 +213,6 @@ export function BoxFlowApp() {
         Production flow shell. Quotes on this page are simulated. Confirm does not
         open a wallet or broadcast a transaction.
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {(["paused", "cap", "wrong-network"] as GateKind[]).map((gate) => (
-          <span
-            key={gate}
-            className="border border-white/15 px-2 py-1 text-[9px] uppercase tracking-widest text-white/40"
-          >
-            Preview gates inside the modal
-          </span>
-        ))}
-      </div>
-
       {TOOLKITS.map((toolkit) => (
         <section key={toolkit.id} className="mt-8" aria-labelledby={`toolkit-${toolkit.id}`}>
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 border-b border-white/15 pb-1">
@@ -259,14 +275,22 @@ export function BoxFlowApp() {
       <SepoliaBanner />
       {catalogue}
       {selected && state && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center">
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && state.step !== "finality") {
+              closeFlow();
+            }
+          }}
+        >
           <div
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="box-flow-title"
             data-testid="box-flow-dialog"
-            className="flex max-h-[100dvh] w-full flex-col border border-white/20 bg-black sm:max-h-[90vh] sm:max-w-[720px]"
+            data-step={state.step}
+            className="flex h-[100dvh] w-full max-w-full flex-col overflow-hidden border border-white/20 bg-black sm:h-auto sm:max-h-[90vh] sm:max-w-[720px]"
           >
             <SepoliaBanner />
             <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
@@ -323,52 +347,43 @@ export function BoxFlowApp() {
               )}
               {state.step === "sign" && (
                 <div data-testid="sign-step">
-                  <h3 className="text-lg font-bold">Confirm in wallet</h3>
+                  <h3 className="text-lg font-bold">CONFIRM IN WALLET</h3>
                   <p className="mt-2 text-[12px] leading-relaxed text-white/70">
                     {signBlockedReason()}
+                  </p>
+                  <p className="mt-2 text-[12px] text-white/60">
+                    0.05 ETH → {selected.name}. Network: Sepolia (11155111).
                   </p>
                   <p className="mt-3 text-[11px] text-white/40">
                     phreaking.fun will never ask for your seed phrase.
                   </p>
                 </div>
               )}
-              {state.step === "finality" && (
-                <ol data-testid="finality-stages" className="space-y-2" aria-live="polite">
-                  {stages.map((stage, index) => (
-                    <li
-                      key={stage}
-                      className={
-                        index === state.stageIndex
-                          ? "text-terminal-green"
-                          : "text-white/40"
-                      }
-                    >
-                      {index < state.stageIndex ? "done" : index === state.stageIndex ? "active" : "pending"}{" "}
-                      {stage}
-                    </li>
-                  ))}
-                </ol>
+              {state.step === "finality" && !state.finalityHidden && (
+                <FinalityOverlay
+                  boxName={selected.name}
+                  accent={selected.accent}
+                  stages={stages}
+                  stageIndex={state.stageIndex}
+                  reducedMotion={reducedMotion}
+                  elapsedSeconds={elapsed}
+                />
               )}
-              {state.step === "result" && (
-                <div data-testid="result-step">
-                  <p className="text-[11px] uppercase tracking-[0.3em] text-terminal-green">
-                    {selected.demo.eyebrow}
-                  </p>
-                  <h3 className="mt-2 text-xl font-bold">{selected.demo.headline}</h3>
-                  {selected.demo.triggeredBox && (
-                    <p className="mt-2 text-[12px]" data-testid="triggered-box">
-                      TRIGGERED BOX: {selected.demo.triggeredBox}
-                    </p>
-                  )}
-                  <p className="mt-3 text-[12px] text-white/70">{selected.demo.note}</p>
-                  <p className="mt-2 text-[10px] uppercase tracking-widest text-white/30">
-                    Simulated result. No transaction was broadcast.
-                  </p>
-                </div>
+              {state.step === "finality" && state.finalityHidden && (
+                <p className="text-[12px] text-white/60" data-testid="finality-collapsed-note">
+                  {FINALITY_KEEP_OPEN}
+                </p>
               )}
+              {state.step === "result" && <ResultScreen box={selected} />}
               {state.step === "error" && (
                 <div data-testid="error-step">
-                  <h3 className="text-lg font-bold">Transaction reverted. Your deposit was not taken.</h3>
+                  <h3 className="text-lg font-bold">{REVERTED_COPY}</h3>
+                  <p className="mt-2 text-[12px] text-white/60">
+                    Nothing was taken. Your amount is still on the configure step.
+                  </p>
+                  <p className="mt-3 text-[11px] text-white/40" data-testid="support-ref">
+                    BOX-{selected.id} / TX none / preview
+                  </p>
                 </div>
               )}
               {state.notice && (
@@ -387,6 +402,24 @@ export function BoxFlowApp() {
               />
             </div>
           </div>
+          {state.step === "finality" && state.finalityHidden && (
+            <div
+              data-testid="finality-bar"
+              className="fixed inset-x-0 bottom-0 z-[60] flex items-center justify-between gap-3 border-t border-white/20 bg-black px-4 py-3"
+            >
+              <p className="text-[11px] uppercase tracking-widest text-white">
+                {selected.name} executing — {stages[state.stageIndex] ?? "SUBMITTED"}
+              </p>
+              <button
+                type="button"
+                data-autofocus="true"
+                onClick={() => patch({ finalityHidden: false })}
+                className="min-h-11 border border-white/25 px-3 text-[11px] tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+              >
+                SHOW
+              </button>
+            </div>
+          )}
         </div>
       )}
       <p className="sr-only" data-testid="box-count">
@@ -411,7 +444,9 @@ function ConfigureStep({
   if (box.status === "locked" || state.gate === "locked") {
     return (
       <div data-testid="locked-configure">
-        <p className="text-sm font-bold">{STAKING_LOCKED_COPY}</p>
+        <p className="text-sm font-bold" tabIndex={-1} data-autofocus="true">
+          {STAKING_LOCKED_COPY}
+        </p>
         <p className="mt-2 text-[12px] text-white/60">
           Vibe boxes stay locked on Sepolia. The real staking gate is not live.
         </p>
@@ -426,6 +461,7 @@ function ConfigureStep({
         <label className="block text-[11px] uppercase tracking-widest text-white/40">
           Amount
           <input
+            data-autofocus="true"
             value={state.rows[0]?.amount ?? ""}
             onChange={(event) =>
               onChange({
@@ -464,6 +500,65 @@ function ConfigureStep({
           })}
         </div>
       ))}
+      {box.flowKind === "portfolio-offer" && (
+        <div className="border border-white/25 p-3" data-testid="blue-offer">
+          <p className="text-[10px] uppercase tracking-widest text-white/40">Offer for the lot</p>
+          <p className="mt-1 text-sm text-white">$160.00 → XCM + RIO + LINK</p>
+          <p className="text-[11px] text-white/50">{BLUE_BAND_COPY}</p>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              data-testid="accept-offer"
+              onClick={() => onChange({ offerAccepted: true, notice: "Offer accepted. Continue to review." })}
+              className="min-h-11 flex-1 border border-terminal-green px-3 text-[10px] uppercase tracking-widest text-terminal-green focus:outline-none focus:ring-2 focus:ring-white"
+            >
+              {state.offerAccepted ? "Offer accepted" : "Accept offer"}
+            </button>
+            <button
+              type="button"
+              data-testid="reject-offer"
+              onClick={() =>
+                onChange({
+                  offerAccepted: false,
+                  notice: "Offer rejected. Request a new offer to continue.",
+                })
+              }
+              className="min-h-11 flex-1 border border-white/25 px-3 text-[10px] uppercase tracking-widest text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
+            >
+              Reject offer
+            </button>
+          </div>
+        </div>
+      )}
+      {box.flowKind === "recycle" && (
+        <div className="border border-white/15 p-3 text-[11px]" data-testid="green-screen">
+          <p className="text-[10px] uppercase tracking-widest text-white/40">Receipt screening</p>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span className="text-white/70">Contract age and 90-day volume</span>
+            <span className={state.greenEligible ? "text-terminal-green" : "text-terminal-orange"}>
+              {state.greenEligible ? "PASS" : "FAIL"}
+            </span>
+          </div>
+          {!state.greenEligible && (
+            <p className="mt-2 font-bold text-terminal-orange" role="alert">
+              {GREEN_INELIGIBLE_COPY}
+            </p>
+          )}
+          <button
+            type="button"
+            data-testid="toggle-eligibility"
+            onClick={() =>
+              onChange({
+                greenEligible: !state.greenEligible,
+                notice: state.greenEligible ? GREEN_INELIGIBLE_COPY : "Asset meets the recycler screen.",
+              })
+            }
+            className="mt-2 min-h-11 border border-white/25 px-3 text-[10px] uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+          >
+            {state.greenEligible ? "Mark asset ineligible" : "Remove ineligible asset"}
+          </button>
+        </div>
+      )}
       {box.id === "white" && (
         <div className="flex gap-2">
           {(["random", "choose"] as const).map((mode) => (
@@ -545,15 +640,16 @@ function FlowFooter({
         <button
           type="button"
           onClick={onClose}
-          className="border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+          className="min-h-11 border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
         >
           EXIT
         </button>
         <button
           type="button"
+          data-testid="review-button"
           disabled={!ready}
           onClick={() => onPatch({ step: "review", notice: null })}
-          className="flex-1 border border-terminal-green px-4 py-3 text-xs font-bold tracking-widest text-terminal-green disabled:cursor-not-allowed disabled:border-white/15 disabled:text-white/25 focus:outline-none focus:ring-2 focus:ring-white"
+          className="min-h-11 flex-1 border border-terminal-green px-4 py-3 text-xs font-bold tracking-widest text-terminal-green disabled:cursor-not-allowed disabled:border-white/15 disabled:text-white/25 focus:outline-none focus:ring-2 focus:ring-white"
         >
           {ready ? "REVIEW" : state.gate === "wrong-network" ? WRONG_NETWORK_COPY : "REVIEW BLOCKED"}
         </button>
@@ -567,7 +663,7 @@ function FlowFooter({
         <button
           type="button"
           onClick={() => onPatch({ step: "configure" })}
-          className="border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+          className="min-h-11 border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
         >
           BACK
         </button>
@@ -581,7 +677,7 @@ function FlowFooter({
             }
             onPatch({ step: "sign", ackError: false, notice: null });
           }}
-          className="flex-1 border border-white px-4 py-3 text-xs font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+          className="min-h-11 flex-1 border border-white px-4 py-3 text-xs font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
         >
           CONFIRM IN WALLET
         </button>
@@ -595,15 +691,15 @@ function FlowFooter({
         <button
           type="button"
           onClick={() => onPatch({ step: "review", notice: SIGNATURE_CANCELLED, signing: false })}
-          className="border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+          className="min-h-11 border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
         >
           CANCEL
         </button>
         <button
           type="button"
           data-testid="preview-finality"
-          onClick={() => onPatch({ step: "finality", stageIndex: 0, notice: null })}
-          className="border border-white/25 px-4 py-3 text-xs tracking-widest text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
+          onClick={() => onPatch({ step: "finality", stageIndex: 0, finalityHidden: false, notice: null })}
+          className="min-h-11 border border-white/25 px-4 py-3 text-xs tracking-widest text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
         >
           PREVIEW FINALITY (NO TX)
         </button>
@@ -612,19 +708,30 @@ function FlowFooter({
   }
 
   if (state.step === "finality") {
+    if (state.finalityHidden) return null;
     return (
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
-          onClick={() => onPatch({ step: "result" })}
-          className="flex-1 border border-terminal-green px-4 py-3 text-xs tracking-widest text-terminal-green focus:outline-none focus:ring-2 focus:ring-white"
+          data-testid="hide-finality"
+          onClick={() => onPatch({ finalityHidden: true })}
+          className="min-h-11 border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+        >
+          HIDE
+        </button>
+        <button
+          type="button"
+          data-testid="preview-result"
+          onClick={() => onPatch({ step: "result", finalityHidden: false })}
+          className="min-h-11 flex-1 border border-terminal-green px-4 py-3 text-xs tracking-widest text-terminal-green focus:outline-none focus:ring-2 focus:ring-white"
         >
           PREVIEW RESULT
         </button>
         <button
           type="button"
-          onClick={() => onPatch({ step: "error" })}
-          className="border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+          data-testid="preview-error"
+          onClick={() => onPatch({ step: "error", finalityHidden: false })}
+          className="min-h-11 border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
         >
           PREVIEW ERROR
         </button>
@@ -632,13 +739,53 @@ function FlowFooter({
     );
   }
 
+  if (state.step === "result") {
+    return (
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          data-testid="open-another"
+          onClick={() =>
+            onPatch({
+              ...initialFlowState(box),
+              rows: state.rows,
+              toggles: state.toggles,
+              charityMode: state.charityMode,
+              machine: state.machine,
+            })
+          }
+          className="min-h-11 flex-1 border border-terminal-green px-4 py-3 text-xs tracking-widest text-terminal-green focus:outline-none focus:ring-2 focus:ring-white"
+        >
+          OPEN ANOTHER {box.name}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="min-h-11 flex-1 border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+        >
+          BACK TO TOOLKIT
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClose}
-      className="w-full border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
-    >
-      BACK TO TOOLKIT
-    </button>
+    <div className="flex gap-2">
+      <button
+        type="button"
+        data-testid="try-again"
+        onClick={() => onPatch({ step: "configure", notice: null })}
+        className="min-h-11 flex-1 border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+      >
+        TRY AGAIN
+      </button>
+      <button
+        type="button"
+        onClick={onClose}
+        className="min-h-11 border border-white/25 px-4 py-3 text-xs tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+      >
+        BACK TO TOOLKIT
+      </button>
+    </div>
   );
 }
