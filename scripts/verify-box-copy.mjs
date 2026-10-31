@@ -102,5 +102,13 @@ assert.ok(app.includes("readBoxStatus"));
 assert.ok(app.includes("gateFromSnapshot"));
 assert.ok(!app.includes("walletClient"));
 assert.ok(!app.includes("writeContract"));
+assert.ok(app.includes("PurpleModule"));
+assert.ok(app.includes("CheckeredModule"));
+assert.ok(app.includes("RussianFlagModule"));
+assert.ok(copy.includes("Similar value is estimated within ±10% and is not guaranteed."));
+assert.ok(copy.includes("demo simulator"));
+assert.ok(copy.includes("PnL < 2.4% → 13% · 2.4%–50% → 15% · > 50% → 22%."));
+assert.ok(flow.includes('box.id === "checkered"'));
+assert.ok(flow.includes("selectedNfts.length > 0"));
 
-console.log("box copy snapshot ok: 15 boxes, Rainbow disclosure, White 14px panel, pause/cap reads");
+console.log("box copy snapshot ok: 15 boxes, Rainbow disclosure, White 14px panel, pause/cap reads, Purple/Checkered/Russian modules");

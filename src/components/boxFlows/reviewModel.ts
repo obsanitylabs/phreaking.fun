@@ -1,11 +1,15 @@
 import type { BoxDefinition } from "@/components/design/boxFlows/types";
 import {
+  IRREVERSIBLE_HEADING,
   MYSTERY_ACKNOWLEDGEMENT,
   MYSTERY_YOU_RECEIVE,
+  PURPLE_SIMILAR_VALUE,
   RAINBOW_ACKNOWLEDGEMENT,
   RAINBOW_BLACK_SWEEP_WARNING,
   RAINBOW_POSSIBLE_OUTCOMES,
   RAINBOW_YOU_RECEIVE,
+  RUSSIAN_RETURN_NOTE,
+  RUSSIAN_TAX_TABLE,
   WHITE_BOX_ACKNOWLEDGEMENT,
   WHITE_BOX_PRODUCT_LINE,
   WHITE_BOX_RECEIPT_LANGUAGE,
@@ -18,6 +22,10 @@ export interface ReviewDisclosure {
   possibleOutputs?: string;
   extraWarnings: string[];
   acknowledgement?: string;
+  irreversibleHeading?: string;
+  taxLine?: string;
+  positionNote?: string;
+  similarValue?: string;
   verbatimPanel?: {
     text: string;
     minFontPx: number;
@@ -45,6 +53,33 @@ export function reviewDisclosure(box: BoxDefinition): ReviewDisclosure {
       possibleOutputs: "Possible outputs: BAX · RIO · LINK · GFI · PEAR · wTHT · +12 more",
       extraWarnings: [],
       acknowledgement: box.acknowledgement ?? MYSTERY_ACKNOWLEDGEMENT,
+    };
+  }
+
+  if (box.id === "purple") {
+    return {
+      youReceive: box.demo.assets
+        .map((asset) => `${asset.amount} ${asset.symbol}`)
+        .join(", "),
+      extraWarnings: [PURPLE_SIMILAR_VALUE],
+      similarValue: PURPLE_SIMILAR_VALUE,
+    };
+  }
+
+  if (box.id === "checkered" || box.id === "black" || box.id === "russian-flag") {
+    return {
+      youReceive:
+        box.id === "russian-flag"
+          ? "POSITION OPEN — direction, entry, and a 24h countdown"
+          : box.demo.assets.map((asset) => `${asset.amount} ${asset.symbol}`).join(", "),
+      extraWarnings: [],
+      acknowledgement: box.acknowledgement,
+      irreversibleHeading:
+        box.id === "black" || box.id === "checkered" || box.id === "russian-flag"
+          ? IRREVERSIBLE_HEADING
+          : undefined,
+      taxLine: box.id === "russian-flag" ? RUSSIAN_TAX_TABLE : undefined,
+      positionNote: box.id === "russian-flag" ? RUSSIAN_RETURN_NOTE : undefined,
     };
   }
 

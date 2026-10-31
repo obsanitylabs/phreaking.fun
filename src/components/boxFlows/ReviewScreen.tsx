@@ -20,6 +20,7 @@ interface ReviewScreenProps {
   acknowledged: boolean;
   onAcknowledge: (value: boolean) => void;
   ackError?: boolean;
+  youReceiveOverride?: string;
 }
 
 export function ReviewScreen({
@@ -30,6 +31,7 @@ export function ReviewScreen({
   acknowledged,
   onAcknowledge,
   ackError,
+  youReceiveOverride,
 }: ReviewScreenProps) {
   const disclosure = reviewDisclosure(box);
   const warnings = reviewWarnings(box);
@@ -77,8 +79,23 @@ export function ReviewScreen({
         </p>
         <div className="mt-1 border border-white/15 px-3 py-2 text-xs">
           <p className="text-white" data-testid="you-receive-line">
-            {disclosure.youReceive}
+            {youReceiveOverride ?? disclosure.youReceive}
           </p>
+          {disclosure.similarValue && (
+            <p className="mt-2 text-[12px] text-white/70" data-testid="similar-value">
+              {disclosure.similarValue}
+            </p>
+          )}
+          {disclosure.taxLine && (
+            <p className="mt-2 text-[12px] text-terminal-orange" data-testid="tax-line">
+              {disclosure.taxLine}
+            </p>
+          )}
+          {disclosure.positionNote && (
+            <p className="mt-1 text-[12px] text-white/70" data-testid="position-note">
+              {disclosure.positionNote}
+            </p>
+          )}
           {disclosure.possibleOutcomes && (
             <p
               className="mt-2 text-[12px] leading-relaxed text-white/70"
@@ -133,6 +150,15 @@ export function ReviewScreen({
           productLine={disclosure.verbatimPanel.productLine}
           minFontPx={disclosure.verbatimPanel.minFontPx}
         />
+      )}
+
+      {disclosure.irreversibleHeading && (
+        <p
+          className="border border-terminal-orange bg-[#1A1206] px-3 py-2 text-[12px] font-bold uppercase tracking-widest text-terminal-orange"
+          data-testid="irreversible-heading"
+        >
+          {disclosure.irreversibleHeading}
+        </p>
       )}
 
       {needsAck && (

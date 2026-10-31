@@ -28,6 +28,7 @@ import {
   STAKING_LOCKED_COPY,
   WRONG_NETWORK_COPY,
 } from "./copy";
+import { CheckeredModule, PurpleModule, RussianFlagModule } from "./BoxModules";
 import { FinalityOverlay } from "./FinalityOverlay";
 import {
   canAdvanceFromConfigure,
@@ -39,6 +40,7 @@ import {
   type FlowState,
   type GateKind,
 } from "./flowState";
+import { formatUsd as formatModuleUsd, nftFloorTotal, purpleMode, purpleReviewReceive } from "./moduleModel";
 import { ResultScreen } from "./ResultScreen";
 import { ReviewScreen } from "./ReviewScreen";
 import { SepoliaBanner } from "./SepoliaBanner";
@@ -61,6 +63,17 @@ const PRICES: Record<string, number> = {
 };
 
 function sendRows(box: BoxDefinition, state: FlowState) {
+  if (box.id === "purple" && purpleMode(state.toggles) === "nft-to-alt") {
+    return state.selectedNfts.length === 0
+      ? []
+      : [
+          {
+            symbol: "NFTs",
+            amount: String(state.selectedNfts.length),
+            usd: formatModuleUsd(nftFloorTotal(state.selectedNfts)),
+          },
+        ];
+  }
   if (box.assetMode === "wallet") {
     return [
       { symbol: "ETH", amount: "0.420", usd: "$1,344.00" },
@@ -313,8 +326,9 @@ export function BoxFlowApp() {
       </h1>
       <p className="mt-2 max-w-2xl text-xs leading-relaxed text-white/50">
         Production flow shell. Quotes on this page are simulated. Pause and cap
-        read the Sepolia fleet when an address is configured. Confirm does not
-        open a wallet or broadcast a transaction.
+        read the Sepolia fleet when an address is configured. Purple, Checkered,
+        and Russian Flag use static demo modules. Confirm does not open a wallet
+        or broadcast a transaction.
       </p>
       {TOOLKITS.map((toolkit) => (
         <section key={toolkit.id} className="mt-8" aria-labelledby={`toolkit-${toolkit.id}`}>
@@ -454,6 +468,11 @@ export function BoxFlowApp() {
                   }
                   acknowledged={state.acknowledged}
                   ackError={state.ackError}
+                  youReceiveOverride={
+                    selected.id === "purple"
+                      ? purpleReviewReceive(purpleMode(state.toggles), state.selectedNfts.length)
+                      : undefined
+                  }
                   onAcknowledge={(value) => patch({ acknowledged: value, ackError: false })}
                 />
               )}
@@ -569,7 +588,7 @@ function ConfigureStep({
   return (
     <div className="space-y-4" data-testid="configure-step">
       <p className="text-[12px] leading-relaxed text-white/70">{box.oneLine}</p>
-      {box.assetMode !== "wallet" && box.assetMode !== "none" && (
+      {box.assetMode !== "wallet" && box.assetMode !== "none" && box.assetMode !== "nft" && (
         <label className="block text-[11px] uppercase tracking-widest text-white/40">
           Amount
           <input
@@ -671,6 +690,25 @@ function ConfigureStep({
           </button>
         </div>
       )}
+      {box.id === "purple" && <PurpleModule state={state} onChange={onChange} />}
+      {box.id === "purple" && state.toggles.mode === "alt-to-nft" && (
+        <label className="block text-[11px] uppercase tracking-widest text-white/40">
+          Altcoin amount
+          <input
+            value={state.rows[0]?.amount ?? ""}
+            onChange={(event) =>
+              onChange({
+                rows: [{ token: "USDC", amount: event.target.value }],
+                notice: "Quote updated",
+              })
+            }
+            inputMode="decimal"
+            className="mt-1 w-full border border-white/20 bg-black px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white"
+          />
+        </label>
+      )}
+      {box.id === "checkered" && <CheckeredModule state={state} onChange={onChange} />}
+      {box.id === "russian-flag" && <RussianFlagModule state={state} />}
       {box.id === "white" && (
         <div className="flex gap-2">
           {(["random", "choose"] as const).map((mode) => (
@@ -769,7 +807,15 @@ function FlowFooter({
           onClick={() => onPatch({ step: "review", notice: null })}
           className="min-h-11 flex-1 border border-terminal-green px-4 py-3 text-xs font-bold tracking-widest text-terminal-green disabled:cursor-not-allowed disabled:border-white/15 disabled:text-white/25 focus:outline-none focus:ring-2 focus:ring-white"
         >
-          {ready ? "REVIEW" : state.gate === "wrong-network" ? WRONG_NETWORK_COPY : "REVIEW BLOCKED"}
+          {ready
+            ? "REVIEW"
+            : state.gate === "wrong-network"
+              ? WRONG_NETWORK_COPY
+              : box.id === "checkered" && state.matchPhase !== "matched"
+                ? "WAITING FOR MATCH"
+                : box.id === "purple" && state.selectedNfts.length === 0 && state.toggles.mode !== "alt-to-nft"
+                  ? "SELECT AN NFT"
+                  : "REVIEW BLOCKED"}
         </button>
       </div>
     );
@@ -870,6 +916,8 @@ function FlowFooter({
               toggles: state.toggles,
               charityMode: state.charityMode,
               machine: state.machine,
+              selectedNfts: state.selectedNfts,
+              floorSweep: state.floorSweep,
             })
           }
           className="min-h-11 flex-1 border border-terminal-green px-4 py-3 text-xs tracking-widest text-terminal-green focus:outline-none focus:ring-2 focus:ring-white"
