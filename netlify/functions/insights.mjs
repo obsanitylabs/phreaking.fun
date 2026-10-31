@@ -201,9 +201,12 @@ export default async (req) => {
           parseInt(process.env.PFF_FAILED_TX_SCAN_BLOCKS || "900", 10) || 900,
       });
     } catch (e) {
+      const msg = String((e && e.message) || e);
       out.onchainOverlay = {
-        error: "rpc-unavailable",
-        message: String((e && e.message) || e),
+        error: msg.includes("PFF_BOX_ADDRESSES")
+          ? "config-error"
+          : "rpc-unavailable",
+        message: msg,
       };
     }
   }

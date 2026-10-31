@@ -219,28 +219,27 @@
           s.count,
           s.native + " ETH",
           s.erc20Transfers,
-          s.erc20TotalAmountRaw || "—",
+          s.erc20Tokens ?? "—",
         ]);
-        const pause = Object.entries(oc.pauseState || {}).map(([name, s]) => [
-          name,
-          s.paused ? "PAUSED" : "live",
-          s.unpauseReleaseAt,
-          s.totalValueAtRiskEth + " ETH",
-        ]);
+        const pause = Object.entries(oc.pauseState || {}).map(([name, s]) =>
+          s.error
+            ? // read-failed boxes degrade explicitly — never fabricated "live" state
+              [name, "read-failed", s.message || "—", "—"]
+            : [
+                name,
+                s.paused ? "PAUSED" : "live",
+                s.unpauseReleaseAt,
+                s.totalValueAtRiskUsd + " USD",
+              ],
+        );
         const ft = oc.failedTx || {};
         el("oc").innerHTML =
           table([
-            ["box", "paused", "unpauseReleaseAt", "totalValueAtRisk"],
+            ["box", "paused", "unpauseReleaseAt", "totalValueAtRisk (USD 1e8)"],
             ...pause,
           ]) +
           table([
-            [
-              "box",
-              "deposits",
-              "native volume",
-              "erc20 transfers",
-              "erc20 total (raw)",
-            ],
+            ["box", "deposits", "native volume", "erc20 transfers", "erc20 tokens"],
             ...dep,
           ]) +
           "<p>failed-tx rate (last " +

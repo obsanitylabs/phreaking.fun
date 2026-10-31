@@ -50,6 +50,8 @@ export function campaignFunnel(events) {
     openers,
     // pre-registered rates (OBS-297 §2): box-open = C2/C1, repeat-open = repeat/openers
     boxOpenRate: rate(c2.size, c1.size),
+    boxOpenRateNote:
+      "activation_complete and funnel_step box_configured are independent events; the raw ratio is not capped at 1.0 and may exceed 100% if the app does not emit activation_complete exactly at first box open",
     repeatOpenRate: rate(repeat, openers),
     stepNames: {
       c_configured: "box_configured",

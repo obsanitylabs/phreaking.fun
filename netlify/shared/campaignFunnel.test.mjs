@@ -174,7 +174,7 @@ test("aggregateDeposits: sums native and erc20 volumes per box, counts separatel
   assert.equal(box.count, 3);
   assert.equal(box.native, "2.5");
   assert.equal(box.erc20Transfers, 1);
-  assert.equal(box.erc20TotalAmountRaw, "5");
+  assert.equal(box.erc20Tokens, 1);
   // privacy: no wallet or token addresses in the aggregate output
   const s = JSON.stringify(got);
   assert.ok(!/2222|3333|1c7d4b/i.test(s));
