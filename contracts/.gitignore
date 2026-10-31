@@ -12,7 +12,8 @@ out/
 /broadcast/**/dry-run/
 
 # Docs
-docs/
+docs/*
+!docs/SEPOLIA-ATTACK-SIM.md
 
 # Dotenv file
 .env

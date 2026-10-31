@@ -28,7 +28,7 @@ Branch: `build-day-boxes`. No mainnet deployment, no keys — Sepolia/local test
 | `src/ReferralToken.sol` | Dummy referral token (Polygon) | one-pager §1 "Referrals", decision h | ERC-20, 18 decimals, immutable maxSupply backstop; MINTER_ROLE-only mint/burn |
 | `src/ReferralRegistry.sol` | Referral registry + free Red Box swap redemption | one-pager §1 "Referrals" | referee self-registers once → uplink credited 1 whole token (1:1 MATIC peg); pull-only redemption burns the token and emits `FreeSwapGranted` for off-chain settlement; guardian pause/timelocked unpause same as base |
 | `src/BoxTokenRegistry.sol` | Per-box token pools + decimals + activation | decision 4 (`BoxRegistry`) | admin-managed configuration, no fund-movement surface |
-| `src/TokenPricer.sol` | Whole-token USD price feed (1e8) | decision 4 (`OracleAdapter`) | seconds-based freshness window; non-upgradeable for build day (UUPS later) |
+| `src/TokenPricer.sol` | Whole-token USD price feed (1e8) | decision 4 (`OracleAdapter`) | seconds-based freshness window; rejects zero quotes (a $0 price would bypass every USD cap); non-upgradeable for build day (UUPS later) |
 | `src/interfaces/IBoxExecutor.sol` | Trusted off-chain executor interface | decision 3/5 | all DEX routing, bridging (Axelar/Synapse), VRF, Secret/Monero paths settle here — stubbed today |
 | `src/interfaces/IBox.sol`, `IERC20.sol`, `ITokenPricer.sol` | Supporting interfaces | — | local declarations matching deployed ABI conventions |
 
@@ -43,6 +43,13 @@ Branch: `build-day-boxes`. No mainnet deployment, no keys — Sepolia/local test
     standing approval (or stranded balance) exists between deposits. `msg.value` must be zero on this branch.
   Settlement, DEX routing, cross-chain bridging, VRF randomness and the Black-box Secret/Monero path live in
   the trusted off-chain `IBoxExecutor`; contracts never route user funds themselves outside that delegation.
+  Every variant reverts on a zero output token (`"<Box>: no output token returned"`) so a silent no-op
+  settlement cannot swallow a deposit, and a deposit that never reaches the executor cannot happen: each box
+  reverts until an executor is configured.
+- `script/Deploy.s.sol` wires the executor on all 17 boxes at deploy time, so a freshly deployed fleet is
+  deposit-ready instead of reverting until the multisig configures executors by hand. Candidate attacks against
+  the deployed fleet and the invariant each must hold are enumerated in
+  [`docs/SEPOLIA-ATTACK-SIM.md`](docs/SEPOLIA-ATTACK-SIM.md).
 - There is deliberately no sweep/rescue path: no admin can move user principal. Deposits are expected to leave
   the box within the atomic deposit transaction, not accumulate.
 - No privileged path moves user principal: admin roles manage caps/pools/executor only; fees (where any) go
@@ -60,11 +67,12 @@ the immutable token supply cap always remains as the hard backstop).
 ## Deployment script (Phase 2 — Sepolia)
 
 `script/Deploy.s.sol` deploys the full fleet in one atomic sequence with bounded-launch wiring: guardian pause
-roles, CFO-signed caps at deploy time, known Sepolia tokens registered (`USDC.e`/WETH/LINK), and a final step
-that transfers every `DEFAULT_ADMIN_ROLE` to the multisig and renounces the deployer EOA.
+roles, the box executor on all 17 variants, CFO-signed caps at deploy time, known Sepolia tokens registered
+(`USDC.e`/WETH/LINK), and a final step that transfers every `DEFAULT_ADMIN_ROLE` to the multisig and renounces
+the deployer EOA.
 
 ```shell
-ADMIN=<deployer-EOA-address> MULTISIG=<2of3-multisig> GUARDIAN=<on-call-guardian> \
+ADMIN=<deployer-EOA-address> MULTISIG=<2of3-multisig> GUARDIAN=<on-call-guardian> EXECUTOR=<executor-contract> \
 VAR_CAP_USD=<usd1e8> TX_CAP_USD=<usd1e8> WALLET_CAP_USD=<usd1e8> REFERRAL_MAX_SUPPLY=<optional-wei> \
 forge script script/Deploy.s.sol --rpc-url <sepolia-rpc> --broadcast --private-key $DEPLOY_KEY
 ```
@@ -73,19 +81,32 @@ forge script script/Deploy.s.sol --rpc-url <sepolia-rpc> --broadcast --private-k
 signed transaction from that key, so constructor admin roles and all setup calls execute as it. Caps left unset
 deploy at 0 (= unlimited) — the script logs a loud warning; set them before launch per the deployment package.
 
+`EXECUTOR` is a required, distinct contract address. It is the trusted settlement actor (see the script
+NatSpec): it must accept native value on `execute`, pull the exact per-deposit ERC20 allowance, and return a
+non-zero output token. Setting it at deploy time is what makes a fresh fleet deposit-ready — otherwise every
+`deposit` reverts with `"<Box>: executor not set"`. Rotating it later is a single multisig `setExecutor` call
+per box.
+
 ## Tests
 
 ```shell
-$ forge test    # 62 passed / 0 failed across 12 suites
+$ forge test    # 88 passed / 0 failed across 14 suites
 ```
 
 Covers: pause-in-one-tx, timelocked unpause, tx/total-VaR/wallet caps, role gating (OZ v5 custom errors), CEI
 deposit flow with mock executor, OBS-185 fund-forwarding integration (settling executor pulls the exact ERC20
 deposit with no standing allowance, native value reaches the executor, and ETH attached to an ERC20 deposit
-reverts), price freshness/staleness + truncation guard, registry pool membership and
+reverts), price freshness/staleness + zero-price rejection + truncation guard, registry pool membership and
 deactivation, referral registration/reward caps/supply cap/redemption burn/pause controls, plus the fleet-wide
 emergency-stop drill (`FleetDrill.t.sol`): guardian sweeps a one-tx pause over all 17 boxes + referral registry,
 deposit blocked while paused, non-guardian cannot touch pause/unpause, timelocked recovery after 24h.
+
+`test/AttackSim.t.sol` adds runnable attack simulations keyed to [`docs/SEPOLIA-ATTACK-SIM.md`](docs/SEPOLIA-ATTACK-SIM.md):
+ERC20/native reentrancy via token and executor, per-deposit allowance reset, zero/stale-price cap bypass, pause
+and stale-unpause-queue handling, native `msg.value` mismatch and ETH-on-ERC20, non-pulling-executor stranding
+and reverting executors, the zero-output guard across all 12 hardened variants, registry/pool misconfiguration,
+referral self-referral/farming/supply caps, and a run of the real `Deploy.s.sol` asserting executors are wired
+on all 17 boxes.
 
 ## Build tooling
 
