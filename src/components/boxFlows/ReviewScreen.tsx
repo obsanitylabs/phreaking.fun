@@ -3,6 +3,8 @@
 import { ShieldAlert } from "lucide-react";
 import type { BoxDefinition } from "@/components/design/boxFlows/types";
 import { CONFIRM_FINE_PRINT } from "./copy";
+import { QuotePanel } from "./QuotePanel";
+import type { SimulatedQuote } from "./quoteModel";
 import { reviewDisclosure, reviewWarnings } from "./reviewModel";
 import { WhiteVerbatimPanel } from "./WhiteVerbatimPanel";
 
@@ -21,6 +23,8 @@ interface ReviewScreenProps {
   onAcknowledge: (value: boolean) => void;
   ackError?: boolean;
   youReceiveOverride?: string;
+  quote?: SimulatedQuote | null;
+  onRefreshQuote?: () => void;
 }
 
 export function ReviewScreen({
@@ -32,6 +36,8 @@ export function ReviewScreen({
   onAcknowledge,
   ackError,
   youReceiveOverride,
+  quote,
+  onRefreshQuote,
 }: ReviewScreenProps) {
   const disclosure = reviewDisclosure(box);
   const warnings = reviewWarnings(box);
@@ -112,24 +118,28 @@ export function ReviewScreen({
         </div>
       </div>
 
-      <dl className="space-y-1 text-[11px]">
-        <div className="flex justify-between gap-4">
-          <dt className="text-white/40">ROUTE</dt>
-          <dd className="text-right text-white/70">{route}</dd>
-        </div>
-        <div className="flex justify-between gap-4">
-          <dt className="text-white/40">NETWORK FEE</dt>
-          <dd className="text-right text-white/70">0.0012 ETH + 5% premium</dd>
-        </div>
-        <div className="flex justify-between gap-4">
-          <dt className="text-white/40">PLATFORM FEE</dt>
-          <dd className="text-right text-white/70">5% of output</dd>
-        </div>
-        <div className="flex justify-between gap-4">
-          <dt className="text-white/40">NETWORK</dt>
-          <dd className="text-right text-white/70">Sepolia (11155111)</dd>
-        </div>
-      </dl>
+      {quote && onRefreshQuote ? (
+        <QuotePanel quote={quote} onRefresh={onRefreshQuote} />
+      ) : (
+        <dl className="space-y-1 text-[11px]">
+          <div className="flex justify-between gap-4">
+            <dt className="text-white/40">ROUTE</dt>
+            <dd className="text-right text-white/70">{route}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-white/40">NETWORK FEE</dt>
+            <dd className="text-right text-white/70">0.0012 ETH + 5% premium</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-white/40">PLATFORM FEE</dt>
+            <dd className="text-right text-white/70">5% of output</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-white/40">NETWORK</dt>
+            <dd className="text-right text-white/70">Sepolia (11155111)</dd>
+          </div>
+        </dl>
+      )}
 
       <div className="border border-terminal-orange/50 bg-[#1A1206] p-3">
         <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-terminal-orange">

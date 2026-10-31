@@ -23,6 +23,7 @@ import {
   FINALITY_KEEP_OPEN,
   GREEN_INELIGIBLE_COPY,
   PAUSED_COPY,
+  QUOTE_EXPIRED_COPY,
   REVERTED_COPY,
   SIGNATURE_CANCELLED,
   STAKING_LOCKED_COPY,
@@ -41,6 +42,13 @@ import {
   type GateKind,
 } from "./flowState";
 import { formatUsd as formatModuleUsd, nftFloorTotal, purpleMode, purpleReviewReceive } from "./moduleModel";
+import { QuotePanel } from "./QuotePanel";
+import {
+  buildSimulatedQuote,
+  quoteInputKey,
+  QUOTE_UPDATED,
+  type SimulatedQuote,
+} from "./quoteModel";
 import { ResultScreen } from "./ResultScreen";
 import { ReviewScreen } from "./ReviewScreen";
 import { SepoliaBanner } from "./SepoliaBanner";
@@ -130,6 +138,7 @@ export function BoxFlowApp() {
   const [state, setState] = useState<FlowState | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [status, setStatus] = useState<BoxStatusSnapshot | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -292,11 +301,55 @@ export function BoxFlowApp() {
     return () => window.clearInterval(timer);
   }, [state?.step, reducedMotion]);
 
+  useEffect(() => {
+    if (!state || state.step === "finality" || state.step === "result" || state.step === "error") {
+      return;
+    }
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [state?.step, selectedId]);
+
+  const quote = useMemo(() => {
+    if (!selected || !state) return null;
+    return buildSimulatedQuote(selected, state, nowMs);
+  }, [selected, state, nowMs]);
+
+  const quoteKey = state ? quoteInputKey(state) : "";
+  const quoteKeyRef = useRef("");
+  useEffect(() => {
+    if (!state) {
+      quoteKeyRef.current = "";
+      return;
+    }
+    if (quoteKeyRef.current === "") {
+      quoteKeyRef.current = quoteKey;
+      return;
+    }
+    if (quoteKey === quoteKeyRef.current) return;
+    quoteKeyRef.current = quoteKey;
+    const issuedAt = Date.now();
+    setNowMs(issuedAt);
+    setState((current) =>
+      current
+        ? {
+            ...current,
+            quoteIssuedAt: issuedAt,
+            quoteRevision: current.quoteRevision + 1,
+            notice: current.step === "review" ? QUOTE_UPDATED : current.notice,
+            step: current.step === "review" ? "configure" : current.step,
+          }
+        : current,
+    );
+  }, [quoteKey, state]);
+
   function openBox(box: BoxDefinition, trigger: HTMLElement | null) {
     openerRef.current = trigger;
     setElapsed(0);
+    const issuedAt = Date.now();
+    setNowMs(issuedAt);
+    quoteKeyRef.current = "";
     setSelectedId(box.id);
-    setState(initialFlowState(box));
+    setState({ ...initialFlowState(box), quoteIssuedAt: issuedAt });
   }
 
   function closeFlow() {
@@ -309,6 +362,16 @@ export function BoxFlowApp() {
 
   function patch(partial: Partial<FlowState>) {
     setState((current) => (current ? { ...current, ...partial } : current));
+  }
+
+  function refreshQuote() {
+    const issuedAt = Date.now();
+    setNowMs(issuedAt);
+    patch({
+      quoteIssuedAt: issuedAt,
+      quoteRevision: (state?.quoteRevision ?? 0) + 1,
+      notice: QUOTE_UPDATED,
+    });
   }
 
   const stages = useMemo(
@@ -325,10 +388,10 @@ export function BoxFlowApp() {
         Pick a box. Read the review before you sign.
       </h1>
       <p className="mt-2 max-w-2xl text-xs leading-relaxed text-white/50">
-        Production flow shell. Quotes on this page are simulated. Pause and cap
-        read the Sepolia fleet when an address is configured. Purple, Checkered,
-        and Russian Flag use static demo modules. Confirm does not open a wallet
-        or broadcast a transaction.
+        Production flow shell. Quotes on this page are a labelled 60-second
+        simulator. Pause and cap read the Sepolia fleet when an address is
+        configured. Checkered has no counterparty pool and Russian Flag does not
+        open a GMX position. Confirm does not open a wallet or broadcast.
       </p>
       {TOOLKITS.map((toolkit) => (
         <section key={toolkit.id} className="mt-8" aria-labelledby={`toolkit-${toolkit.id}`}>
@@ -447,18 +510,18 @@ export function BoxFlowApp() {
                 <ConfigureStep
                   box={selected}
                   state={state}
+                  quote={quote}
                   onChange={patch}
+                  onRefreshQuote={refreshQuote}
                 />
               )}
               {state.step === "review" && (
                 <ReviewScreen
                   box={selected}
                   sendRows={sendRows(selected, state)}
-                  route={
-                    selected.id === "red" && state.toggles.route === "cross-chain"
-                      ? "Sepolia -> Axelar -> destination chain"
-                      : selected.demo.route
-                  }
+                  route={quote?.route ?? selected.demo.route}
+                  quote={quote}
+                  onRefreshQuote={refreshQuote}
                   charityLabel={
                     selected.id === "white"
                       ? state.charityMode === "random"
@@ -527,6 +590,7 @@ export function BoxFlowApp() {
             <div className="sticky bottom-0 border-t border-white/10 bg-black px-4 py-3">
               <FlowFooter
                 box={selected}
+                quoteExpired={Boolean(quote?.expired)}
                 state={state}
                 onClose={closeFlow}
                 onPatch={patch}
@@ -566,11 +630,15 @@ export function BoxFlowApp() {
 function ConfigureStep({
   box,
   state,
+  quote,
   onChange,
+  onRefreshQuote,
 }: {
   box: BoxDefinition;
   state: FlowState;
+  quote: SimulatedQuote | null;
   onChange: (partial: Partial<FlowState>) => void;
+  onRefreshQuote: () => void;
 }) {
   if (box.status === "locked" || state.gate === "locked") {
     return (
@@ -748,6 +816,7 @@ function ConfigureStep({
           Demo simulator — no live counterparty or GMX position on Sepolia.
         </p>
       )}
+      {quote && <QuotePanel quote={quote} onRefresh={onRefreshQuote} />}
       <div className="flex flex-wrap gap-2">
         {(
           [
@@ -781,16 +850,18 @@ function ConfigureStep({
 function FlowFooter({
   box,
   state,
+  quoteExpired,
   onClose,
   onPatch,
 }: {
   box: BoxDefinition;
   state: FlowState;
+  quoteExpired: boolean;
   onClose: () => void;
   onPatch: (partial: Partial<FlowState>) => void;
 }) {
   if (state.step === "configure") {
-    const ready = canAdvanceFromConfigure(box, state);
+    const ready = canAdvanceFromConfigure(box, state, quoteExpired);
     return (
       <div className="flex gap-2">
         <button
@@ -809,7 +880,9 @@ function FlowFooter({
         >
           {ready
             ? "REVIEW"
-            : state.gate === "wrong-network"
+            : quoteExpired
+              ? QUOTE_EXPIRED_COPY
+              : state.gate === "wrong-network"
               ? WRONG_NETWORK_COPY
               : box.id === "checkered" && state.matchPhase !== "matched"
                 ? "WAITING FOR MATCH"
@@ -834,14 +907,19 @@ function FlowFooter({
         <button
           type="button"
           data-testid="confirm-in-wallet"
+          disabled={quoteExpired}
           onClick={() => {
-            if (!canConfirmReview(box, state)) {
+            if (quoteExpired) {
+              onPatch({ notice: QUOTE_EXPIRED_COPY });
+              return;
+            }
+            if (!canConfirmReview(box, state, quoteExpired)) {
               onPatch({ ackError: true });
               return;
             }
             onPatch({ step: "sign", ackError: false, notice: null });
           }}
-          className="min-h-11 flex-1 border border-white px-4 py-3 text-xs font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-white"
+          className="min-h-11 flex-1 border border-white px-4 py-3 text-xs font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-white disabled:cursor-not-allowed disabled:border-white/15 disabled:text-white/25"
         >
           CONFIRM IN WALLET
         </button>
