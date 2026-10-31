@@ -16,6 +16,7 @@ import {
   reviewReceiveLine,
   reviewWarnings,
   resultAssetRows,
+  resultPositionEntry,
   resultSweepValue,
   signSummaryLine,
 } from "./reviewModel";
@@ -378,6 +379,31 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
   const mysteryRows = resultAssetRows(BOX_BY_ID.mystery, mystery);
   assert.equal(mysteryRows[0]?.quoted, false);
   assert.match(mysteryRows[0]?.amount ?? "", /1\.000/);
+
+  const russian = initialFlowState(BOX_BY_ID["russian-flag"]);
+  russian.rows = [{ token: "USDC", amount: "250" }];
+  russian.quoteIssuedAt = issuedAt;
+  const russianQuote = buildSimulatedQuote(BOX_BY_ID["russian-flag"], russian, issuedAt, {
+    source: "chainlink",
+    prices: { USDC: 1 },
+  });
+  const entry = resultPositionEntry(russianQuote.depositUsd);
+  assert.equal(entry.value, "$250.00");
+  assert.equal(entry.value.includes("$1,000.00"), false);
+  assert.match(entry.note, /No GMX position/);
+  assert.equal(resultPositionEntry("Spot read required").value, "Entry unavailable");
+  assert.equal(resultPositionEntry(null).value, "Entry unavailable");
+  const russianRows = resultAssetRows(BOX_BY_ID["russian-flag"], russianQuote);
+  assert.equal(russianRows[0]?.symbol, "POSITION");
+  assert.equal(russianRows[0]?.quoted, true);
+  assert.equal(russianRows[0]?.amount, "$250.00");
+  assert.equal(russianRows[0]?.usd, "$250.00");
+  const russianMissing = resultAssetRows(BOX_BY_ID["russian-flag"], {
+    ...russianQuote,
+    depositUsd: "Spot read required",
+  });
+  assert.equal(russianMissing[0]?.amount, "Entry unavailable");
+  assert.equal(russianMissing[0]?.amount.includes("$1,000.00"), false);
 
   const now = 1_700_000_000;
   assert.equal(parseChainlinkAnswer(BigInt(2500_00000000), 8, BigInt(now - 60), now), 2500);

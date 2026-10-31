@@ -6,7 +6,9 @@ import { WHITE_BOX_PRODUCT_LINE } from "./copy";
 import type { SimulatedQuote } from "./quoteModel";
 import {
   resultAssetRows,
+  resultPositionEntry,
   resultSweepValue,
+  POSITION_ENTRY_PREVIEW,
   RESULT_VALUE_PREVIEW,
   SWEEP_VALUE_PREVIEW,
 } from "./reviewModel";
@@ -64,6 +66,8 @@ export function ResultScreen({
   const result = box.demo;
   const showTokenLinks = resultShowsTokenLinks(box);
   const sweep = box.resultKind === "harold-nft" ? resultSweepValue(depositUsd) : null;
+  const position =
+    box.resultKind === "position" ? resultPositionEntry(quote?.depositUsd ?? depositUsd) : null;
   const received = resultAssetRows(box, quote);
 
   return (
@@ -135,7 +139,7 @@ export function ResultScreen({
             <div className="grid grid-cols-1 gap-1 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4">
               <dt className="text-white/40">ENTRY</dt>
               <dd className="text-white/80 sm:text-right" data-testid="position-entry">
-                $1,000.00 USDC
+                {position?.value ?? "Entry unavailable"}
               </dd>
             </div>
             <div className="grid grid-cols-1 gap-1 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4">
@@ -159,6 +163,11 @@ export function ResultScreen({
       {received.some((asset) => asset.quoted) && (
         <p className="mt-2 text-[11px] text-white/50" data-testid="result-value-note">
           {RESULT_VALUE_PREVIEW}
+        </p>
+      )}
+      {position && (
+        <p className="mt-2 text-[11px] text-white/50" data-testid="position-entry-note">
+          {position.note || POSITION_ENTRY_PREVIEW}
         </p>
       )}
       {box.resultKind === "donation" && (
