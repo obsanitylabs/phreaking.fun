@@ -25,3 +25,13 @@ Board direction 2026-10-30: existing infra only; each site gets its own dashboar
 2. GC-approved privacy notice live on the site.
 3. `INSIGHTS_TOKEN` set in Netlify site env.
 4. Acceptance: `SITE=<domain> PRODUCT=pff TOKEN=<token> bash verify/verify-e2e.sh` + dashboard screenshots filed on OBS-125.
+
+## OBS-303 — campaign funnel (C0–C3) + admin-only on-chain overlay
+
+Read paths (all numbers reproduce from exactly two read APIs — no side tallies, pre-registered on the OBS-297 measurement-plan):
+
+- **C0** `waitlist_verified` (pff) — joined in the dashboard from `GET /api/waitlist/stats?product=pff` (OBS-203 waitlist service; its own Bearer token, second field on `/insights/`).
+- **C1–C3** — `GET /api/insights?days=N` now returns `campaignFunnel`: C1 `funnel_step pff_purchase/box_configured`, C2 `activation_complete`, C3 `core_action box_opened ≥2` — all distinct `anonymous_id`, metric-dictionary-v2 events only (no new events/attributes; `box_configured` vocabulary pending CPO sign-off on OBS-307).
+- **On-chain overlay** — `GET /api/insights?days=N&onchain=1` adds `onchainOverlay`: pause/cap state per box (`paused`, `unpauseReleaseAt`, per-tx/per-wallet/VaR caps), deposit aggregates from `DepositReceived` logs, and a bounded failed-tx scan (`PFF_FAILED_TX_SCAN_BLOCKS`, default 900, max 3600). Computed live from the Sepolia RPC (`PFF_SEPOLIA_RPC_URL`, fleet via `PFF_BOX_ADDRESSES`), **aggregate-only**: no wallet addresses, tx hashes, emails or raw IPs are returned or persisted, and nothing on-chain is ever written to the analytics store. Undeployed boxes degrade to an explicit `read-failed` — no fabricated state. `revenue`/`fees` are `null` (the prototype contracts are deposit-forward; no on-chain fee accounting exists to read).
+
+Unit tests: `node --test netlify/shared/` (28 tests — funnel definitions, rate formulas, and the overlay aggregation privacy rules).
