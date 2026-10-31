@@ -1,7 +1,7 @@
 # phreaking.fun — Incident Runbook (Bounded-Launch Window)
 
 Status: CISO **APPROVED WITH CONDITIONS** on [OBS-322](/OBS/issues/OBS-322) (conditions 1–3 tracked; not all closed — see below). This revision was **refreshed 2026-10-31** by Senior Solidity Engineer per OBS-338 to the rebuilt, non-upgradeable fleet and therefore **requires CISO re-approval** ([OBS-339](/OBS/issues/OBS-339)) because it changes text the CISO approved. **Not unconditionally approved — the CISO owns that language.** Originally prepared 2026-10-29 per OBS-129.
-- CISO condition 1 (fill the §6 guardian/backup/paging roster) is **pending board approval `fb22247f`**; the surrounding procedure is concrete below but the placeholders cannot be filled until that decides.
+- CISO condition 1 (fill the §6 admin set + paging tool) is **pending the board's injection** into the guardian control. The board approved the control shape on card `85b0830d` at 2026-10-31T15:50:04Z and directed: *"go forward without the admin wallets for now. we will inject them later and update."* The surrounding procedure is concrete below but the placeholders cannot be filled until that injection lands (tracked on OBS-381).
 - CISO condition 2 (a live, timed, human-executed Sepolia pause drill) is **not closed by this document**; it needs the broadcast path ([OBS-321](/OBS/issues/OBS-321)) and is tracked with the live drill, not the in-repo `FleetDrill` test.
 - CISO condition 3 (make-whole funding statement) is addressed in §5.
 Applies to the first 30 days of mainnet operation under bounded-launch caps (§ MAINNET-DEPLOYMENT-PACKAGE.md).
@@ -58,20 +58,38 @@ With mainnet value-at-risk at **$0** and deposits disabled, **no make-whole outl
 
 ## 6. On-call for first 30 days
 
-**Blocking board input (CISO condition 1) — pending board approval `fb22247f`, which names the guardian, the backup and the paging channel. The runbook is executable only once these are filled:**
-- Primary guardian: `[NAMED GUARDIAN — assign before go-live]` — **BLOCKING, pending board approval `fb22247f`**.
-- Backup: `[NAMED BACKUP]` — **BLOCKING, pending board approval `fb22247f`**.
-- Paging: `[PAGING CHANNEL/TOOL]` — **BLOCKING, pending board approval `fb22247f`**.
+**Board input status (updated 2026-10-31T15:50Z).** Board card `fb22247f` was **rejected** at 2026-10-31T15:13:13Z with no note; the board re-shaped the control in its own words and it was re-raised as card `85b0830d`, which the board **approved** at 2026-10-31T15:50:04Z (`decisionNote: null`) with this note on the approval's comment thread:
 
-CISO condition 1 **cannot close** until `fb22247f` is answered and these three names land. The procedure below is concrete and executable as soon as they do.
+> *"go forward without the admin wallets for now. we will inject them later and update."*
+
+**The approved control shape** (this replaces the old human-primary/backup roster shape):
+- The **phreaking.fun admin dashboard governs every pause and freeze** — it is the control surface, not a status display.
+- **Admins are a config-backed set of wallet addresses**, authenticated by connected-wallet signature. **No private key is held in the dashboard, in any service, or in any agent context** — custody stays human, in the guardian multisig.
+- **Unfreeze requires an N-of-M admin-signature quorum** matching the on-chain guardian multisig (**2-of-3**, `MAINNET-DEPLOYMENT-PACKAGE.md` §3 "Emergency stop"), enforced **on-chain** — not in the frontend.
+- The board's interim **single-admin exception** applies while only one admin is present, and switches off once a second admin is added.
+- The dashboard **fails closed** below quorum and audit-logs every governance action.
+
+**Still blocking (CISO condition 1) — the admin set and the paging tool are not yet named.** The board chose to ship the mechanism now and inject the operator later, so this runbook is **executable only once these land**:
+- Primary admin (wallet address): `[NAMED ADMIN WALLET — board injection pending]` — **BLOCKING**.
+- Second admin (if the admin set has more than one member): `[NAMED ADMIN WALLET 2 — board injection pending]` — **BLOCKING**.
+- Paging: `[PAGING CHANNEL/TOOL]` — **BLOCKING**.
+
+**Injection-time preconditions** — the moment the admin set is populated, all of these must hold:
+1. CISO access-control sign-off on the dashboard pause/freeze control is in place and its stated minimum is met (OBS-375).
+2. The unfreeze quorum is enforced **on-chain** by the guardian multisig. A single-key unfreeze in the frontend fails the company key-handling policy and the control itself.
+3. The paging tool escalates to a human, and the 24/7 on-call commitment (ack ≤ 10 minutes) is recorded.
+4. The **live** Sepolia pause drill below has been executed and its evidence recorded (OBS-129).
+5. This section and the dashboard admin config are updated with the injected values, and the stage-6 gate (OBS-294) is re-verified.
+
+Until then the emergency-pause control is **built but not staffed**, and the mainnet bounded launch is not authorised. Sepolia is unaffected.
 
 Procedure (concrete; runs once the names above are set):
 - **Coverage:** 24/7 rotating shifts of **8 hours**; written handover notes required at every shift change.
 - **Acknowledgement:** any page must be acknowledged **within 10 minutes**; if not acknowledged, the backup is paged automatically.
-- **Authority:** the on-call guardian holds hardware-wallet access to the pause path. The guardian can `pause()` unilaterally in one tx; no further approval is needed to pause.
-- **Two-person rule:** S1 pauses are confirmed with a second named engineer where time allows; if the second person is unreachable, the guardian pauses first and documents why.
-- **Escalation ladder:** guardian → backup → Senior Solidity Engineer → CISO → CEO. Escalate to the CISO immediately for any actual or suspected fund loss; to the CEO for any make-whole decision.
-- **Guardian device unavailable:** if the primary guardian cannot reach their device, the backup guardian pauses. If neither can, escalate to the Senior Solidity Engineer and CISO and execute the frontend kill-switch as a stopgap (§2 step 4 — slower and partial). Backup access is via the named backup hardware wallet; seed/recovery handling follows the key-management policy and is never shared over chat.
+- **Authority:** the guardian key stays in the human-held guardian multisig and is never in the dashboard. **Pause is unilateral** for a guardian/admin — no further approval is needed to pause. **Unfreeze requires the N-of-M admin-signature quorum**, enforced on-chain by the multisig, with the board's single-admin exception while only one admin is present.
+- **Two-person rule:** S1 pauses are confirmed with a second named admin (or a second named engineer, where the admin set has a single member) where time allows; if that person is unreachable, the guardian pauses first and documents why.
+- **Escalation ladder:** admin/guardian → backup admin → Senior Solidity Engineer → CISO → CEO. Escalate to the CISO immediately for any actual or suspected fund loss; to the CEO for any make-whole decision.
+- **Admin device unavailable:** if the primary admin cannot reach their device, the backup admin pauses (when the admin set has a second member). If neither can, escalate to the Senior Solidity Engineer and CISO and execute the frontend kill-switch as a stopgap (§2 step 4 — slower and partial). Admin access is via the named admin's hardware wallet; seed/recovery handling follows the key-management policy and is never shared over chat.
 - **Weekly drill:** once per week for the full 30-day window — simulated S1 alert → executed `pause()` on Sepolia → documented timestamps (evidence feeds OBS-129 and the staged-cap review). The drill must cover that `pause()` cancels a queued unpause.
 
 ## 7. Exit from bounded launch
