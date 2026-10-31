@@ -15,13 +15,16 @@ import {
 export { QUOTE_EXPIRED_COPY, QUOTE_EXPIRES_SOON, REFRESH_QUOTE_LABEL };
 
 export const QUOTE_UPDATED = "Quote updated";
-export const QUOTE_DEMO_LABEL = "Simulated quote — no live pool or GMX read.";
+export const QUOTE_DEMO_LABEL = "Simulated route — no counterparty pool or GMX position.";
+export const SPOT_LIVE_LABEL = "Deposit value uses a Sepolia Chainlink spot read.";
+export const SPOT_BLOCKED_LABEL = "Sepolia spot read failed. Refresh quote to try again.";
 
 export const NETWORK_FEE_LINE = "0.0012 ETH + 5% premium, charged in the native gas token";
 export const PLATFORM_FEE_LINE = "5% of output (shown in the output token)";
 export const GATCHA_FEE_LINE = "3% markup + 10% gas premium";
 
-const TOKEN_PRICES: Record<string, number> = {
+/** Last-resort display prices. A live book replaces these. They never unlock Review. */
+export const FALLBACK_TOKEN_PRICES: Record<string, number> = {
   ETH: 3200,
   USDC: 1,
   LINK: 14,
@@ -40,6 +43,11 @@ export interface SimulatedQuote {
   expired: boolean;
   warning: boolean;
   label: string;
+  /** chainlink = deposit USD came from a Sepolia spot read. */
+  spotSource: "chainlink" | "fallback" | "error";
+  spotNote: string;
+  /** True when a token deposit cannot be priced from the live book. */
+  spotBlocked: boolean;
 }
 
 export function formatQuoteClock(seconds: number): string {
@@ -78,7 +86,29 @@ export function formatUsd(value: number): string {
   });
 }
 
-export function depositUsd(box: BoxDefinition, state: FlowState): number {
+export function tokenDepositUsd(
+  state: FlowState,
+  prices: Partial<Record<string, number>>,
+): { usd: number; missing: string[] } {
+  const missing: string[] = [];
+  const usd = state.rows.reduce((sum, row) => {
+    const amount = Number(row.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return sum;
+    const price = prices[row.token];
+    if (price === undefined || !Number.isFinite(price) || price <= 0) {
+      missing.push(row.token);
+      return sum;
+    }
+    return sum + price * amount;
+  }, 0);
+  return { usd, missing };
+}
+
+export function depositUsd(
+  box: BoxDefinition,
+  state: FlowState,
+  prices: Partial<Record<string, number>> = FALLBACK_TOKEN_PRICES,
+): number {
   if (box.id === "purple" && purpleMode(state.toggles) === "nft-to-alt") {
     return nftFloorTotal(state.selectedNfts);
   }
@@ -86,11 +116,16 @@ export function depositUsd(box: BoxDefinition, state: FlowState): number {
   if (box.assetMode === "none") {
     return Number(state.machine.replace(/[^0-9.]/g, "")) || 0;
   }
-  return state.rows.reduce((sum, row) => {
-    const price = TOKEN_PRICES[row.token] ?? 0;
+  return tokenDepositUsd(state, prices).usd;
+}
+
+export function quoteNeedsSpot(box: BoxDefinition, state: FlowState): boolean {
+  if (box.id === "purple" && purpleMode(state.toggles) === "nft-to-alt") return false;
+  if (box.id === "checkered" || box.assetMode === "wallet" || box.assetMode === "none") return false;
+  return state.rows.some((row) => {
     const amount = Number(row.amount);
-    return sum + (Number.isFinite(amount) ? price * amount : 0);
-  }, 0);
+    return Number.isFinite(amount) && amount > 0 && row.token !== "USDC";
+  });
 }
 
 export function estimatedReceive(box: BoxDefinition, state: FlowState): string {
@@ -104,7 +139,7 @@ export function estimatedReceive(box: BoxDefinition, state: FlowState): string {
         ? "Select NFTs to estimate"
         : `~ ${formatUsd(nftFloorTotal(state.selectedNfts))} in altcoins`;
     }
-    return `~ ${formatUsd(depositUsd(box, state))} in floor NFTs`;
+    return `~ ${formatUsd(depositUsd(box, state, FALLBACK_TOKEN_PRICES))} in floor NFTs`;
   }
   if (box.id === "russian-flag") {
     return "POSITION OPEN — direction, entry, and a 24h countdown";
@@ -124,21 +159,39 @@ export function buildSimulatedQuote(
   box: BoxDefinition,
   state: FlowState,
   nowMs: number,
+  spot?: {
+    source: "chainlink" | "fallback" | "error";
+    prices?: Partial<Record<string, number>>;
+    note?: string;
+  },
 ): SimulatedQuote {
   const remainingSeconds = quoteRemaining(state.quoteIssuedAt, nowMs);
   const expired = quoteIsExpired(remainingSeconds);
+  const source = spot?.source ?? "fallback";
+  const prices = source === "chainlink" ? { USDC: 1, ...spot?.prices } : FALLBACK_TOKEN_PRICES;
+  const needsSpot = quoteNeedsSpot(box, state);
+  const priced = tokenDepositUsd(state, prices);
+  const spotBlocked = needsSpot && (source !== "chainlink" || priced.missing.length > 0);
+  const label = spotBlocked
+    ? SPOT_BLOCKED_LABEL
+    : source === "chainlink" && needsSpot
+      ? SPOT_LIVE_LABEL
+      : QUOTE_DEMO_LABEL;
   return {
     revision: state.quoteRevision,
     remainingSeconds,
     estimatedReceive: estimatedReceive(box, state),
-    depositUsd: formatUsd(depositUsd(box, state)),
+    depositUsd: spotBlocked ? "Spot read required" : formatUsd(depositUsd(box, state, prices)),
     route: quoteRoute(box, state.toggles),
     networkFee: box.flowKind === "gatcha" ? GATCHA_FEE_LINE : NETWORK_FEE_LINE,
     platformFee: PLATFORM_FEE_LINE,
     boxFee: box.id === "russian-flag" ? "Tax table applies to PnL, not to the deposit." : undefined,
     expired,
     warning: quoteNeedsWarning(remainingSeconds),
-    label: QUOTE_DEMO_LABEL,
+    label,
+    spotSource: source,
+    spotNote: spot?.note ?? label,
+    spotBlocked,
   };
 }
 

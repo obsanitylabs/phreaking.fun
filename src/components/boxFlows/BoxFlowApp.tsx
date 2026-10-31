@@ -49,6 +49,7 @@ import {
   QUOTE_UPDATED,
   type SimulatedQuote,
 } from "./quoteModel";
+import { readSepoliaSpotPrices, type SpotPriceBook } from "./spotPriceRead";
 import { ResultScreen } from "./ResultScreen";
 import { ReviewScreen } from "./ReviewScreen";
 import { SepoliaBanner } from "./SepoliaBanner";
@@ -140,6 +141,8 @@ export function BoxFlowApp() {
   const [elapsed, setElapsed] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [status, setStatus] = useState<BoxStatusSnapshot | null>(null);
+  const [spot, setSpot] = useState<SpotPriceBook | null>(null);
+  const [spotNonce, setSpotNonce] = useState(0);
   const [chainId, setChainId] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -211,6 +214,20 @@ export function BoxFlowApp() {
       cancelled = true;
     };
   }, [selected]);
+
+  useEffect(() => {
+    if (!selected) {
+      setSpot(null);
+      return;
+    }
+    let cancelled = false;
+    readSepoliaSpotPrices().then((book) => {
+      if (!cancelled) setSpot(book);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected, spotNonce]);
 
   useEffect(() => {
     if (!selectedId || !state) return;
@@ -311,8 +328,8 @@ export function BoxFlowApp() {
 
   const quote = useMemo(() => {
     if (!selected || !state) return null;
-    return buildSimulatedQuote(selected, state, nowMs);
-  }, [selected, state, nowMs]);
+    return buildSimulatedQuote(selected, state, nowMs, spot ?? { source: "fallback" });
+  }, [selected, state, nowMs, spot]);
 
   const quoteKey = state ? quoteInputKey(state) : "";
   const quoteKeyRef = useRef("");
@@ -367,6 +384,7 @@ export function BoxFlowApp() {
   function refreshQuote() {
     const issuedAt = Date.now();
     setNowMs(issuedAt);
+    setSpotNonce((value) => value + 1);
     patch({
       quoteIssuedAt: issuedAt,
       quoteRevision: (state?.quoteRevision ?? 0) + 1,
@@ -391,7 +409,7 @@ export function BoxFlowApp() {
         Production flow shell. Quotes on this page are a labelled 60-second
         simulator. Pause and cap read the Sepolia fleet when an address is
         configured. Checkered has no counterparty pool and Russian Flag does not
-        open a GMX position. Confirm does not open a wallet or broadcast.
+        open a GMX position. Deposit value can use a Sepolia Chainlink spot read. Confirm does not open a wallet or broadcast.
       </p>
       {TOOLKITS.map((toolkit) => (
         <section key={toolkit.id} className="mt-8" aria-labelledby={`toolkit-${toolkit.id}`}>
@@ -590,7 +608,7 @@ export function BoxFlowApp() {
             <div className="sticky bottom-0 border-t border-white/10 bg-black px-4 py-3">
               <FlowFooter
                 box={selected}
-                quoteExpired={Boolean(quote?.expired)}
+                quote={quote}
                 state={state}
                 onClose={closeFlow}
                 onPatch={patch}
@@ -850,18 +868,21 @@ function ConfigureStep({
 function FlowFooter({
   box,
   state,
-  quoteExpired,
+  quote,
   onClose,
   onPatch,
 }: {
   box: BoxDefinition;
   state: FlowState;
-  quoteExpired: boolean;
+  quote: SimulatedQuote | null;
   onClose: () => void;
   onPatch: (partial: Partial<FlowState>) => void;
 }) {
+  const quoteExpired = Boolean(quote?.expired);
+  const spotBlocked = Boolean(quote?.spotBlocked);
+  const quoteBlocked = quoteExpired || spotBlocked;
   if (state.step === "configure") {
-    const ready = canAdvanceFromConfigure(box, state, quoteExpired);
+    const ready = canAdvanceFromConfigure(box, state, quoteBlocked);
     return (
       <div className="flex gap-2">
         <button
@@ -880,7 +901,9 @@ function FlowFooter({
         >
           {ready
             ? "REVIEW"
-            : quoteExpired
+            : quote?.spotBlocked && !quoteExpired
+              ? "SPOT READ REQUIRED"
+              : quoteExpired
               ? QUOTE_EXPIRED_COPY
               : state.gate === "wrong-network"
               ? WRONG_NETWORK_COPY
@@ -907,13 +930,17 @@ function FlowFooter({
         <button
           type="button"
           data-testid="confirm-in-wallet"
-          disabled={quoteExpired}
+          disabled={quoteBlocked}
           onClick={() => {
+            if (quote?.spotBlocked && !quoteExpired) {
+              onPatch({ notice: quote.label });
+              return;
+            }
             if (quoteExpired) {
               onPatch({ notice: QUOTE_EXPIRED_COPY });
               return;
             }
-            if (!canConfirmReview(box, state, quoteExpired)) {
+            if (!canConfirmReview(box, state, quoteBlocked)) {
               onPatch({ ackError: true });
               return;
             }

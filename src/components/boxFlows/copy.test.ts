@@ -18,11 +18,16 @@ import {
   buildSimulatedQuote,
   formatQuoteClock,
   quoteIsExpired,
+  quoteNeedsSpot,
   quoteNeedsWarning,
   quoteRemaining,
   quoteRoute,
+  QUOTE_DEMO_LABEL,
   QUOTE_TTL_SECONDS,
+  SPOT_BLOCKED_LABEL,
+  SPOT_LIVE_LABEL,
 } from "./quoteModel";
+import { parseChainlinkAnswer, SPOT_MAX_AGE_SECONDS } from "./spotPriceRead";
 import { toggleNftSelection } from "./moduleModel";
 import {
   CHECKERED_DEMO_LABEL,
@@ -247,6 +252,30 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
   assert.equal(canAdvanceFromConfigure(BOX_BY_ID.red, red, true), false);
   assert.equal(canConfirmReview(BOX_BY_ID.red, { ...red, acknowledged: true }, true), false);
   assert.equal(canAdvanceFromConfigure(BOX_BY_ID.red, red, false), true);
+
+  const pending = buildSimulatedQuote(BOX_BY_ID.red, red, issuedAt, { source: "fallback" });
+  assert.equal(pending.spotBlocked, true);
+  assert.equal(pending.label, SPOT_BLOCKED_LABEL);
+  assert.equal(quoteNeedsSpot(BOX_BY_ID.red, red), true);
+
+  const live = buildSimulatedQuote(BOX_BY_ID.red, red, issuedAt, {
+    source: "chainlink",
+    prices: { ETH: 2500, USDC: 1 },
+    note: "Sepolia Chainlink spot · 1 feed",
+  });
+  assert.equal(live.spotBlocked, false);
+  assert.equal(live.label, SPOT_LIVE_LABEL);
+  assert.match(live.depositUsd, /\$2,500\.00/);
+  assert.match(live.estimatedReceive, /BAX/);
+  assert.equal(QUOTE_DEMO_LABEL.includes("GMX"), true);
+
+  const now = 1_700_000_000;
+  assert.equal(parseChainlinkAnswer(BigInt(2500_00000000), 8, BigInt(now - 60), now), 2500);
+  assert.equal(parseChainlinkAnswer(BigInt(0), 8, BigInt(now), now), null);
+  assert.equal(
+    parseChainlinkAnswer(BigInt(2500_00000000), 8, BigInt(now - SPOT_MAX_AGE_SECONDS - 1), now),
+    null,
+  );
 });
 
 test("Red, Purple, and Rainbow one-liners use the spec em dash", () => {
