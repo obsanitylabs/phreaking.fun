@@ -90,13 +90,14 @@ per box.
 ## Tests
 
 ```shell
-$ forge test    # 88 passed / 0 failed across 14 suites
+$ forge test    # 91 passed / 0 failed across 15 suites
 ```
 
 Covers: pause-in-one-tx, timelocked unpause, tx/total-VaR/wallet caps, role gating (OZ v5 custom errors), CEI
 deposit flow with mock executor, OBS-185 fund-forwarding integration (settling executor pulls the exact ERC20
 deposit with no standing allowance, native value reaches the executor, and ETH attached to an ERC20 deposit
-reverts), price freshness/staleness + zero-price rejection + truncation guard, registry pool membership and
+reverts), zero-output rejection across all 17 variants plus non-zero settlement on all 17, price freshness/staleness
+(including `priceOf`) + zero-price rejection + truncation guard, registry pool membership and
 deactivation, referral registration/reward caps/supply cap/redemption burn/pause controls, plus the fleet-wide
 emergency-stop drill (`FleetDrill.t.sol`): guardian sweeps a one-tx pause over all 17 boxes + referral registry,
 deposit blocked while paused, non-guardian cannot touch pause/unpause, timelocked recovery after 24h.

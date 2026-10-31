@@ -34,6 +34,15 @@ contract TokenPricerTest is Test {
         pricer.price(tokenA);
     }
 
+    function test_PriceOf_Stale_Reverts() public {
+        // LOW fix regression: priceOf() must apply the same freshness guard as price()/getUSDValue().
+        vm.prank(pricerRole);
+        pricer.setPrice(tokenA, 500 * 1e8, 18);
+        skip(3600 + 1);
+        vm.expectRevert("TokenPricer: stale price");
+        pricer.priceOf(tokenA);
+    }
+
     function test_FreshPrice_Passes() public {
         vm.prank(pricerRole);
         pricer.setPrice(tokenA, 500 * 1e8, 18);
