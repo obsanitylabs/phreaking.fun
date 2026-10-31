@@ -66,11 +66,17 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
     }
 
     /// @notice USD value of `amount` units of `token` (1e8). Reverts if unusable in this box's pool.
+    /// @dev    F-3: decimals come from the pricer (`priceOf`) and MUST agree with the registry for a pooled
+    ///         token; a registry/pricer decimals inconsistency misprices cap accounting and reverts loudly.
+    /// @dev    FZ-1: a positive deposit whose USD value floors to 0 counts as 1 quantum (1e-8 USD), not 0,
+    ///         so a sub-quantum deposit can never bypass the total/per-tx/per-wallet USD caps.
     function valueOf(address token, uint256 amount) public view returns (uint256) {
         require(registry.canUse(token, boxType()), "MysteryBoxBase: token not usable");
-        uint8 decimals_ = registry.decimalsOf(token);
-        // whole-value(1e8) * amount / 10**decimals = USD of `amount` units at 1e8.
-        return pricer.price(token) * amount / (10 ** uint256(decimals_));
+        (uint256 usdPerWhole1e8, uint8 pricerDecimals) = pricer.priceOf(token);
+        uint8 registryDecimals = registry.decimalsOf(token);
+        require(pricerDecimals == registryDecimals, "MysteryBoxBase: pricer/registry decimals mismatch");
+        uint256 value = usdPerWhole1e8 * amount / (10 ** uint256(pricerDecimals));
+        return amount > 0 && value == 0 ? 1 : value;
     }
 
     /// @notice Pause all box activity immediately. Callable by any GUARDIAN_ROLE holder in one tx.
@@ -149,6 +155,7 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
         uint256 value = valueOf(tokenIn, amount);
         _totalValueAtRisk += value;
         _walletDeposited[msg.sender] += value;
+        emit DepositReceived(msg.sender, tokenIn, amount);
 
         if (tokenIn == address(0)) {
             require(msg.value == amount, "MysteryBoxBase: msg.value mismatch");
@@ -160,10 +167,22 @@ abstract contract MysteryBoxBase is AccessControl, Pausable, ReentrancyGuard {
             IERC20(tokenIn).forceApprove(address(executor), amount);
         }
 
+        // Post-dispatch stranding guards (OBS-294 step 6): msg.value is already in address(this).balance, so a
+        // snapshot taken just before dispatch makes a delta of exactly `amount` == "the executor took this
+        // native deposit". An unforwarded native deposit, or any ETH retained on the ERC20 path, reverts
+        // the whole tx (rolling funds and cap accounting back) instead of stranding them in the box.
+        uint256 balanceBefore = address(this).balance;
         tokenOut = _executeSwap(msg.sender, tokenIn, amount, value); // interaction last (CEI)
 
         if (tokenIn != address(0)) {
             IERC20(tokenIn).forceApprove(address(executor), 0);
+        }
+
+        if (tokenIn == address(0)) {
+            require(balanceBefore >= amount, "MysteryBoxBase: native missing");
+            require(balanceBefore - address(this).balance == amount, "MysteryBoxBase: native not forwarded");
+        } else {
+            require(address(this).balance == balanceBefore, "MysteryBoxBase: unexpected value retained");
         }
     }
 

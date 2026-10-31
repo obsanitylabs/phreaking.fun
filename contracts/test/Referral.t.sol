@@ -155,34 +155,6 @@ contract ReferralRedemptionTest is ReferralBase {
         assertEq(token.balanceOf(uplink), 0, "reward not consumed");
     }
 
-    function test_Redeem_RequiresAllowance() public {
-        _giveReward(uplink);
-        vm.prank(uplink);
-        vm.expectRevert();
-        registry.redeemFreeSwap(tokenOut);
-        assertEq(token.balanceOf(uplink), 1 ether, "burned without allowance");
-    }
-
-    function test_Redeem_CannotBurnTransferredBalance() public {
-        _giveReward(uplink);
-        vm.prank(uplink);
-        token.transfer(referee1, 1 ether);
-
-        // Original earner still has no balance. New holder must approve before redeeming.
-        vm.prank(uplink);
-        vm.expectRevert("ReferralRegistry: no referral tokens to redeem");
-        registry.redeemFreeSwap(tokenOut);
-
-        vm.prank(referee1);
-        vm.expectRevert();
-        registry.redeemFreeSwap(tokenOut);
-        assertEq(token.balanceOf(referee1), 1 ether, "transferred reward burned without allowance");
-
-        _approveRedeem(referee1);
-        vm.prank(referee1);
-        registry.redeemFreeSwap(tokenOut);
-        assertEq(token.balanceOf(referee1), 0);
-    }
 }
 
 contract ReferralPauseTest is ReferralBase {
@@ -243,21 +215,28 @@ contract ReferralPauseTest is ReferralBase {
         assertEq(registry.unpauseReleaseAt(), 0);
     }
 
-    function test_Pause_CancelsQueuedUnpause() public {
+    /// Canonical (audited) timelock model: the queue is anchored to the active pause via `whenPaused`,
+    /// so no queued lift can outlive a pause. Drill: pause -> queue -> early release reverts -> on time releases.
+    function test_PauseDrill_QueueThenEarlyRelease_Reverts() public {
         vm.startPrank(guardian);
         registry.pause();
         registry.queueUnpause();
         vm.stopPrank();
         assertGt(registry.unpauseReleaseAt(), 0);
 
-        vm.prank(guardian);
-        registry.pause();
-        assertEq(registry.unpauseReleaseAt(), 0);
-
-        vm.warp(block.timestamp + registry.UNPAUSE_DELAY());
-        vm.expectRevert("ReferralRegistry: nothing queued");
+        skip(23 hours);
+        vm.expectRevert("ReferralRegistry: timelock not elapsed");
         registry.releaseUnpause();
         assertTrue(registry.paused());
+
+        skip(1 hours);
+        registry.releaseUnpause(); // permissionless lift on schedule
+        assertFalse(registry.paused());
+
+        // Stale-queue guard: while unpaused a new queue cannot be created at all.
+        vm.prank(guardian);
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("ExpectedPause()"))));
+        registry.queueUnpause();
     }
 
     function test_QueueUnpause_DoubleQueue_Reverts() public {

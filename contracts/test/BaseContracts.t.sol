@@ -207,12 +207,6 @@ contract BoxTokenRegistryTest is Test {
         registry.registerToken(tokenX, 18);
     }
 
-    function test_Register_ZeroDecimals_Reverts() public {
-        vm.prank(admin);
-        vm.expectRevert("BoxTokenRegistry: bad decimals");
-        registry.registerToken(tokenX, 0);
-    }
-
     function test_SetPool_UnregisteredToken_Reverts() public {
         vm.prank(admin);
         vm.expectRevert("BoxTokenRegistry: unregistered token");

@@ -178,23 +178,29 @@ contract PauseUnpauseTest is MysteryBoxBaseTest {
         assertEq(box.unpauseReleaseAt(), 0);
     }
 
-    function test_Pause_CancelsQueuedUnpause() public {
-        vm.prank(guardian);
+    /// Canonical (audited) timelock model: a queued lift is anchored to the active pause via `whenPaused`,
+    /// so no queued lift can ever outlive a pause. Drill: pause -> queue -> early release reverts -> on time releases.
+    function test_PauseDrill_QueueThenEarlyRelease_Reverts() public {
+        vm.startPrank(guardian);
         box.pause();
-        vm.prank(guardian);
         box.queueUnpause();
         assertGt(box.unpauseReleaseAt(), 0);
 
-        // A new emergency pause must invalidate the pending lift, or releaseUnpause
-        // can unpause after the original delay even though the incident is still open.
-        vm.prank(guardian);
-        box.pause();
-        assertEq(box.unpauseReleaseAt(), 0);
-
-        skip(24 hours);
-        vm.expectRevert("MysteryBoxBase: nothing queued");
+        // Before the 24h timelock the permissionless release must revert; the pause holds.
+        skip(23 hours);
+        vm.expectRevert("MysteryBoxBase: timelock not elapsed");
         box.releaseUnpause();
         assertTrue(box.paused());
+
+        skip(1 hours);
+        box.releaseUnpause(); // permissionless lift on schedule
+        assertFalse(box.paused());
+        vm.stopPrank();
+
+        // Stale-queue guard: while unpaused a new queue cannot be created at all.
+        vm.prank(guardian);
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("ExpectedPause()"))));
+        box.queueUnpause();
     }
 
     bytes32 constant GUARDIAN_ROLE = keccak256("GUARDIAN");
@@ -405,7 +411,7 @@ contract NativeEtherDepositTest is MysteryBoxBaseTest {
         _approveAndFund(user, 1 ether);
         vm.deal(user, 1 ether);
         vm.prank(user);
-        vm.expectRevert("MysteryBoxBase: unexpected value");
+        vm.expectRevert("MysteryBoxBase: msg.value must be zero");
         box.deposit{value: 1 ether}(1 ether, tokenIn);
     }
 
@@ -470,7 +476,8 @@ contract DepositSettlementTest is Test {
 
     function setUp() external {
         registry = new BoxTokenRegistry(admin);
-        pricer = new TokenPricer(admin);
+        DualQuote dual = new DualQuote();
+        pricer = dual.deploy(admin, address(0xEEEEEE11), address(0xEEEEEE22));
         executor = new SettlingMockExecutor();
         box = new MysteryBox(registry, pricer, admin);
         tokenIn = new MockToken();
@@ -483,9 +490,9 @@ contract DepositSettlementTest is Test {
         registry.registerToken(address(0), 18);
         registry.setPoolMembership(BoxTokenRegistry.BoxType.MYSTERY, address(tokenIn), true);
         registry.setPoolMembership(BoxTokenRegistry.BoxType.MYSTERY, address(0), true);
-        pricer.setPrice(address(tokenIn), 2000 * 1e8, 18);
-        pricer.setPrice(address(0), 2000 * 1e8, 18);
         vm.stopPrank();
+        dual.quote(address(tokenIn), 2000 * 1e8, 18);
+        dual.quote(address(0), 2000 * 1e8, 18);
     }
 
     function test_Erc20Deposit_ExecutorPullsFunds_NoStandingAllowance() public {

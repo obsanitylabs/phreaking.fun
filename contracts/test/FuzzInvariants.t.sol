@@ -226,23 +226,26 @@ contract CapsInvariant is BoxHarness {
         assertLe(box.totalValueAtRisk(), 3000 * 1e8, "cumulative VaR over cap");
     }
 
-    // Documented precision bound: deposits whose whole-token USD value truncates to $0
-    // (below the 1e8 quantum, ~<$0.00000001) advance totalValueAtRisk by $0. The caps are
-    // enforced in 1e8 USD granularity, so sub-quantum dust is not counted toward them.
-    // Severity: LOW — bounded by price precision (bypassing by $1 requires ~1e8 dust deposits).
-    function testInvariant_SubQuantumDepositTruncatesToZero() public {
+    // FZ-1 disposition (OBS-310: FIX, counting rule): a positive deposit whose USD value floors to 0
+    // counts as exactly 1 quantum (1e-8 USD) in the cap accounting path, never 0, so sub-quantum dust
+    // can never bypass the total/per-tx/per-wallet USD caps. The pre-fix behaviour (truncate to $0)
+    // is replaced by this bound assertion.
+    function testInvariant_SubQuantumDeposit_CountsExactlyOneQuantum() public {
         _makeBox();
         _fund();
 
-        // valueOf(4e6 units) at $2000/whole = floor(4e6 * 2000e8 / 1e18) = floor(0.8) = 0.
+        // valueOf(4e6 units) at $2000/whole would floor to 0; the FZ-1 fix floors it UP to 1 quantum.
         uint256 dust = 4_000_000;
-        assertEq(box.valueOf(address(token), dust), 0, "dust value must truncate to zero");
+        assertEq(box.valueOf(address(token), dust), 1, "sub-quantum deposit must count as 1 quantum");
 
+        uint256 varBefore = box.totalValueAtRisk();
+        uint256 walletBefore = box.walletDeposited(user);
         vm.prank(user);
-        box.deposit(dust, address(token)); // succeeds; accounts $0 toward the caps
-        assertEq(box.totalValueAtRisk(), 0, "sub-quantum deposit must not advance totalValueAtRisk");
+        box.deposit(dust, address(token)); // succeeds; accounts exactly 1 quantum toward the caps
+        assertEq(box.totalValueAtRisk(), varBefore + 1, "totalValueAtRisk must advance by exactly 1");
+        assertEq(box.walletDeposited(user), walletBefore + 1, "walletDeposited must advance by exactly 1");
 
-        // Real (untruncated) value is non-zero, proving the accounting under-counts dust.
+        // Real (untruncated) value is non-zero, proving the 1-quantum floor is a conservative under-count.
         assertGt(pricer.getUSDValue(address(token), dust * 1_000_000), 0, "real value must be non-zero");
     }
 }

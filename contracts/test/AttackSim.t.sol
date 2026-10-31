@@ -20,6 +20,7 @@ import {GoldBox} from "../src/GoldBox.sol";
 import {RussianFlagBox} from "../src/RussianFlagBox.sol";
 import {BoxTokenRegistry} from "../src/BoxTokenRegistry.sol";
 import {TokenPricer} from "../src/TokenPricer.sol";
+import {DualQuote} from "./PriceSources.sol";
 import {IBoxExecutor} from "../src/interfaces/IBoxExecutor.sol";
 import {ReferralToken} from "../src/ReferralToken.sol";
 import {ReferralRegistry} from "../src/ReferralRegistry.sol";
@@ -160,6 +161,7 @@ contract RevertingExecutor is IBoxExecutor {
 abstract contract AttackSimBase is Test {
     BoxTokenRegistry registry;
     TokenPricer pricer;
+    DualQuote dual;
     MysteryBox box;
     AttackToken tokenIn;
     MockExecutor executor;
@@ -172,7 +174,8 @@ abstract contract AttackSimBase is Test {
 
     function setUp() external virtual {
         registry = new BoxTokenRegistry(admin);
-        pricer = new TokenPricer(admin);
+        dual = new DualQuote();
+        pricer = dual.deploy(admin, address(0xEEEEEE11), address(0xEEEEEE22));
         executor = new MockExecutor();
         box = new MysteryBox(registry, pricer, admin);
         tokenIn = new AttackToken();
@@ -184,9 +187,14 @@ abstract contract AttackSimBase is Test {
         registry.registerToken(address(0), 18);
         registry.setPoolMembership(BoxTokenRegistry.BoxType.MYSTERY, address(tokenIn), true);
         registry.setPoolMembership(BoxTokenRegistry.BoxType.MYSTERY, address(0), true);
-        pricer.setPrice(address(tokenIn), 2000 * 1e8, 18);
-        pricer.setPrice(address(0), 2000 * 1e8, 18);
         vm.stopPrank();
+        dual.quote(address(tokenIn), 2000 * 1e8, 18);
+        dual.quote(address(0), 2000 * 1e8, 18);
+    }
+
+    /// @dev Publish a quote on both redundant sources (the DualQuote helper is its own keeper).
+    function _setPrice(address token, uint256 priceUSDPerWhole, uint8 decimals_) internal {
+        dual.quote(token, priceUSDPerWhole, decimals_);
     }
 
     function _fund(address who, uint256 amount) internal {
@@ -207,7 +215,7 @@ contract AttackSimTest is AttackSimBase {
         vm.startPrank(admin);
         registry.registerToken(address(rt), 18);
         registry.setPoolMembership(BoxTokenRegistry.BoxType.MYSTERY, address(rt), true);
-        pricer.setPrice(address(rt), 2000 * 1e8, 18);
+        _setPrice(address(rt), 2000 * 1e8, 18);
         vm.stopPrank();
 
         rt.mint(user, 1 ether);
@@ -264,11 +272,10 @@ contract AttackSimTest is AttackSimBase {
 
     // ---- 3. cap bypass via price manipulation / stale / zero ----------------------------
 
-    /// A keeper cannot push a zero quote: it would price the token at $0 and bypass every USD cap.
+    /// A keeper cannot push a zero quote: the source rejects it, so a $0 price can never bypass every USD cap.
     function test_ZeroPrice_Rejected() public {
-        vm.prank(admin);
-        vm.expectRevert("TokenPricer: zero price");
-        pricer.setPrice(address(tokenIn), 0, 18);
+        vm.expectRevert("RolePriceSource: zero price");
+        _setPrice(address(tokenIn), 0, 18);
     }
 
     /// A stale quote cannot be used to bypass caps: the deposit reverts while the feed is stale.
@@ -278,9 +285,24 @@ contract AttackSimTest is AttackSimBase {
         _fund(user, 1 ether);
 
         skip(2 hours); // exceeds the 1h heartbeat
-        vm.expectRevert("TokenPricer: stale price");
+        vm.expectRevert(abi.encodeWithSelector(TokenPricer.StalePrice.selector));
         vm.prank(user);
         box.deposit(1 ether, address(tokenIn));
+    }
+
+    /// F-3: both sources may agree, but if their decimals disagree with the registry's for a pooled
+    /// token, cap accounting would be mispriced (whole-token price x wrong scaling). The deposit reverts.
+    function test_DecimalsMismatch_PricerVsRegistry_Reverts() public {
+        vm.prank(admin);
+        box.setPerTransactionCap(1000 * 1e8);
+        _fund(user, 1 ether);
+
+        // Registry says 18 decimals; both keepers (agreeing, fresh, in-band) quote at 6 decimals.
+        _setPrice(address(tokenIn), 2000 * 1e8, 6);
+        vm.expectRevert("MysteryBoxBase: pricer/registry decimals mismatch");
+        vm.prank(user);
+        box.deposit(1 ether, address(tokenIn));
+        assertEq(box.totalValueAtRisk(), 0, "mispriced deposit must not enter cap accounting");
     }
 
     // ---- 4. pause bypass / stale unpause queue -----------------------------------------
@@ -570,6 +592,8 @@ contract DeployScriptTest is Test {
         _setEnv("MULTISIG", msig);
         _setEnv("GUARDIAN", guard);
         _setEnv("EXECUTOR", address(exec));
+        _setEnv("KEEPER_A", address(0x7EEDA1));
+        _setEnv("KEEPER_B", address(0x7EEDB2));
         vm.setEnv("VAR_CAP_USD", "0");
         vm.setEnv("TX_CAP_USD", "0");
         vm.setEnv("WALLET_CAP_USD", "0");

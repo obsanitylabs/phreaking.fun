@@ -15,12 +15,12 @@ contract RolePriceSource is AccessControl, IPriceSource {
     struct Quote {
         uint8 decimals;
         uint80 priceUSDPerWhole;
-        uint32 updatedAt;
+        uint64 updatedAt;
     }
 
     mapping(address => Quote) private _quotes;
 
-    event QuoteUpdated(address indexed token, uint256 priceUSDPerWhole, uint8 decimals, uint32 at);
+    event QuoteUpdated(address indexed token, uint256 priceUSDPerWhole, uint8 decimals, uint64 at);
 
     constructor(address admin) {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -35,9 +35,9 @@ contract RolePriceSource is AccessControl, IPriceSource {
         _quotes[token] = Quote({
             decimals: decimals_,
             priceUSDPerWhole: uint80(priceUSDPerWhole),
-            updatedAt: uint32(block.timestamp)
+            updatedAt: uint64(block.timestamp)
         });
-        emit QuoteUpdated(token, priceUSDPerWhole, decimals_, uint32(block.timestamp));
+        emit QuoteUpdated(token, priceUSDPerWhole, decimals_, uint64(block.timestamp));
     }
 
     function quote(address token) external view returns (uint256 usdPerWhole1e8, uint8 decimals_, uint256 updatedAt) {

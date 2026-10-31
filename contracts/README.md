@@ -90,7 +90,7 @@ per box.
 ## Tests
 
 ```shell
-$ forge test    # 88 passed / 0 failed across 14 suites
+$ forge test    # 114 passed / 0 failed across 18 suites
 ```
 
 Covers: pause-in-one-tx, timelocked unpause, tx/total-VaR/wallet caps, role gating (OZ v5 custom errors), CEI
@@ -116,3 +116,20 @@ $ forge build && forge test && forge fmt
 
 Compiler: solc 0.8.26, evm `paris`, via-IR (required for OZ v5 custom errors; CI timeout budget to be checked).
 Dependencies vendored as submodules under `lib/` (`forge-std`, OpenZeppelin v5.3.0).
+
+## Findings disposition of record (OBS-310 / OBS-294 gate)
+
+Implemented on this branch exactly as decided on OBS-310; do not re-decide here:
+
+| Finding | Disposition | Where |
+|---|---|---|
+| FZ-1 (sub-quantum cap bypass) | **FIX** — a positive deposit whose USD value floors to 0 counts as exactly 1 quantum (1e-8 USD), never 0, in the cap accounting path | `MysteryBoxBase.valueOf` + `testInvariant_SubQuantumDeposit_CountsExactlyOneQuantum` (FuzzInvariants.t.sol) |
+| FZ-2 (uint32 timestamp overflow ~2106) | **FIX** — `RolePriceSource.updatedAt` and `QuoteUpdated.at` widened to `uint64` | `RolePriceSource.sol` (never previously committed/deployed; no storage migration cost) |
+| F-3 (pricer/registry decimals coupling) | **FIX** — `MysteryBoxBase.valueOf` consumes the pricer-reported decimals via `priceOf()` and reverts on mismatch with `registry.decimalsOf()` for a pooled token | `MysteryBoxBase.valueOf` + `test_DecimalsMismatch_PricerVsRegistry_Reverts` (AttackSim.t.sol) |
+| F-2 / zero-price bypass class | **FIX (structural)** — single admin-settable `setPrice` replaced by the immutable two-source redundant oracle (`RolePriceSource` x2 + `TokenPricer(admin, primary, secondary)`), 1% agreement band, higher-quote publish, fail-closed on stale/clock-skew/divergence/zero/decimals-mismatch | `TokenPricer.sol`, `RolePriceSource.sol`, `IPriceSource.sol` |
+| N-2 (deploy-key over-privilege) | **FIX** — `Deploy.s.sol` revokes the deployer EOA's KEEPER_ROLE on both sources and renounces its DEFAULT_ADMIN_ROLE on the sources and the pricer after handoff to the named keepers and the multisig, then asserts every renouncement on-chain after the broadcast. Keeper keys are distinct from the deployer key (custody recorded by secret name only in the deployment package; rotate/destroy per runbook after broadcast) | `Deploy.s.sol` |
+| Coverage caveat | **ACCEPT** — no strict per-contract fuzz re-run now; reproducible per contract with `--fuzz-seed` on request | `test/FuzzInvariants.t.sol` |
+
+### F-3 operator checklist row (handed to stage 7)
+
+- [ ] For every pooled token (including native ETH at address 0): assert on-chain that `pricer.priceOf(token)` decimals == `registry.decimalsOf(token)` before opening the pool. A mismatch makes every deposit revert (`MysteryBoxBase: pricer/registry decimals mismatch`) — this is the fail-closed guard working; fix the source quote's decimals, do not widen the guard.
