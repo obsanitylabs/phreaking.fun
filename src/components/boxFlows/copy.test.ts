@@ -15,6 +15,7 @@ import {
   reviewDisclosure,
   reviewReceiveLine,
   reviewWarnings,
+  resultAssetRows,
   resultSweepValue,
   signSummaryLine,
 } from "./reviewModel";
@@ -346,12 +347,26 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
   assert.equal(resultSweepValue("Spot read required").value, "Sweep value unavailable");
   assert.equal(resultSweepValue(null).value, "Sweep value unavailable");
 
+  const orangeRows = resultAssetRows(BOX_BY_ID.orange, orangeLive);
+  assert.equal(orangeRows.length, 1);
+  assert.equal(orangeRows[0]?.symbol, "WBTC");
+  assert.equal(orangeRows[0]?.quoted, true);
+  assert.equal(orangeRows[0]?.usd, orangeLive.estimatedReceive);
+  assert.equal(orangeRows[0]?.amount.includes("1.000"), false);
+  assert.equal(orangeRows[0]?.usd.includes("$63,120.00"), false);
+  const redRows = resultAssetRows(BOX_BY_ID.red, live);
+  assert.equal(redRows[0]?.amount, "1.000");
+  assert.equal(redRows[0]?.quoted, false);
+
   const orangeBlocked = buildSimulatedQuote(BOX_BY_ID.orange, orange, issuedAt, {
     source: "error",
     prices: { USDC: 1 },
   });
   assert.equal(orangeBlocked.outputBlocked, true);
   assert.equal(orangeBlocked.estimatedReceive, "Spot read required");
+  const orangeMissing = resultAssetRows(BOX_BY_ID.orange, orangeBlocked);
+  assert.equal(orangeMissing[0]?.amount, "Value unavailable");
+  assert.equal(orangeMissing[0]?.usd.includes("$195.67"), false);
 
   const mystery = buildSimulatedQuote(BOX_BY_ID.mystery, red, issuedAt, {
     source: "chainlink",
@@ -360,6 +375,9 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
   assert.match(mystery.estimatedReceive, /random output/);
   assert.match(reviewReceiveLine(BOX_BY_ID.mystery, mystery), /random/);
   assert.equal(mystery.outputBlocked, false);
+  const mysteryRows = resultAssetRows(BOX_BY_ID.mystery, mystery);
+  assert.equal(mysteryRows[0]?.quoted, false);
+  assert.match(mysteryRows[0]?.amount ?? "", /1\.000/);
 
   const now = 1_700_000_000;
   assert.equal(parseChainlinkAnswer(BigInt(2500_00000000), 8, BigInt(now - 60), now), 2500);

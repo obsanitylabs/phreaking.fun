@@ -1,5 +1,5 @@
 import type { BoxDefinition } from "@/components/design/boxFlows/types";
-import type { SimulatedQuote } from "./quoteModel";
+import { outputValueKind, type SimulatedQuote } from "./quoteModel";
 import {
   IRREVERSIBLE_HEADING,
   MYSTERY_ACKNOWLEDGEMENT,
@@ -165,6 +165,64 @@ export function reviewWarnings(box: BoxDefinition): string[] {
 
 export const SWEEP_VALUE_PREVIEW =
   "Sweep value is a labelled inventory preview, not a wallet read.";
+
+export const RESULT_VALUE_PREVIEW =
+  "Received value repeats the quote you just accepted. It is not a token amount or a pool fill.";
+
+export interface ResultAssetRow {
+  symbol: string;
+  amount: string;
+  usd: string;
+  /** True when the row prints the accepted quote instead of a catalogue amount. */
+  quoted: boolean;
+}
+
+const OUTPUT_SYMBOL: Partial<Record<BoxDefinition["id"], string>> = {
+  orange: "WBTC",
+  white: "USDC",
+  blue: "OFFER",
+  green: "SCREENED",
+  purple: "NFT FLOOR",
+};
+
+/**
+ * Spec §6.7. A known-output result repeats the quote the user just accepted.
+ * It must not print a catalogue amount such as "1.000 WBTC / $63,120.00".
+ * Token quantity stays unknown until a pool fill exists. The named output
+ * token keeps its CoinGecko and Dexscreener links.
+ */
+export function resultAssetRows(
+  box: BoxDefinition,
+  quote: SimulatedQuote | null | undefined,
+): ResultAssetRow[] {
+  const catalogue = box.demo.assets.map((asset) => ({
+    symbol: asset.symbol,
+    amount: asset.amount,
+    usd: asset.usd,
+    quoted: false,
+  }));
+  if (box.resultKind === "harold-nft") return catalogue;
+  if (!quote || outputValueKind(box) !== "value") return catalogue;
+  const symbol = OUTPUT_SYMBOL[box.id] ?? box.demo.assets[0]?.symbol ?? "OUTPUT";
+  if (quote.outputBlocked || quote.estimatedReceive === "Spot read required") {
+    return [
+      {
+        symbol,
+        amount: "Value unavailable",
+        usd: "Spot read required",
+        quoted: true,
+      },
+    ];
+  }
+  return [
+    {
+      symbol,
+      amount: "Amount pending pool fill",
+      usd: quote.estimatedReceive,
+      quoted: true,
+    },
+  ];
+}
 
 /**
  * Spec §6.7. Black prints the USD the user just reviewed on the NFT.
