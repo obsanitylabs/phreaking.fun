@@ -75,6 +75,24 @@ function formatUsd(value: number): string {
   });
 }
 
+function MirrorWeightsNote({ box }: { box: BoxDefinition }) {
+  if (!box.mirrorWeightsAreDemo || !box.targetWeights) return null;
+  return (
+    <div
+      className="border border-white/15 p-3 text-[11px]"
+      data-testid={`demo-weights-${box.id}`}
+    >
+      <p className="text-[10px] uppercase tracking-widest text-white/40">
+        Target basket weights
+      </p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-terminal-orange">
+        DEMO WEIGHTS
+      </p>
+      <p className="mt-1 text-white/70">{box.targetWeights}</p>
+    </div>
+  );
+}
+
 const PRICES: Record<string, number> = {
   ETH: 3200,
   USDC: 1,
@@ -540,6 +558,11 @@ export function BoxFlowApp() {
                           {chip}
                         </span>
                       ))}
+                      {box.mirrorWeightsAreDemo && (
+                        <span className="border border-terminal-orange/60 px-1 py-0.5 text-terminal-orange">
+                          DEMO WEIGHTS
+                        </span>
+                      )}
                       {locked && (
                         <span className="inline-flex items-center gap-1 border border-white/20 px-1 py-0.5">
                           <Lock size={10} aria-hidden="true" /> {STAKING_LOCKED_COPY}
@@ -792,6 +815,9 @@ function ConfigureStep({
         <p className="mt-2 text-[12px] text-white/60">
           Vibe boxes stay locked on Sepolia. The real staking gate is not live.
         </p>
+        <div className="mt-3">
+          <MirrorWeightsNote box={box} />
+        </div>
       </div>
     );
   }
@@ -799,6 +825,7 @@ function ConfigureStep({
   return (
     <div className="space-y-4" data-testid="configure-step">
       <p className="text-[12px] leading-relaxed text-white/70">{box.oneLine}</p>
+      {box.mirrorWeightsAreDemo && <MirrorWeightsNote box={box} />}
       {box.assetMode !== "wallet" && box.assetMode !== "none" && box.assetMode !== "nft" && (
         <label className="block text-[11px] uppercase tracking-widest text-white/40">
           Amount

@@ -655,6 +655,24 @@ function ErrorView({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+function MirrorWeightsNote({ box }: { box: BoxDefinition }) {
+  if (!box.mirrorWeightsAreDemo || !box.targetWeights) return null;
+  return (
+    <div
+      className="mt-3 border border-white/15 p-3 text-[11px]"
+      data-testid={`demo-weights-${box.id}`}
+    >
+      <p className="text-[10px] uppercase tracking-widest text-white/40">
+        Target basket weights
+      </p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-terminal-orange">
+        DEMO WEIGHTS
+      </p>
+      <p className="mt-1 text-white/70">{box.targetWeights}</p>
+    </div>
+  );
+}
+
 export default function BoxFlowPrototype() {
   const [selectedId, setSelectedId] = useState<BoxDefinition["id"] | null>(null);
   const [step, setStep] = useState<Step>("configure");
@@ -899,6 +917,7 @@ export default function BoxFlowPrototype() {
           >
             STAKING IS NOT LIVE ON SEPOLIA
           </button>
+          <MirrorWeightsNote box={box} />
         </div>
       );
     }
@@ -1089,13 +1108,10 @@ export default function BoxFlowPrototype() {
             <p className="text-[10px] uppercase tracking-widest text-white/40">
               Target basket weights
             </p>
-            <p className="mt-1 text-white/70">
-              {box.id === "silver"
-                ? "wBTC 50% · ETH 20% · LINK 10% · ONDO 5% · MKR 5% · UNI 2% · AAVE 2% · AVAX 2% · ENA 2% · SEI 2%"
-                : box.id === "gold"
-                  ? "F 25% · SYRUP 25% · GFI 25% · CPOOL 25% (example configuration)"
-                  : "UNB · LITH · STURDY · RLY · wTHT — 1% max slippage per coin, TWAP over 24h"}
+            <p className="text-[10px] font-bold uppercase tracking-widest text-terminal-orange">
+              DEMO WEIGHTS
             </p>
+            <p className="mt-1 text-white/70">{box.targetWeights}</p>
             {box.id === "diamond" && (
               <p className="mt-2 text-terminal-orange">
                 You may receive several small bags. Highest-risk mirror.
@@ -1709,6 +1725,11 @@ export default function BoxFlowPrototype() {
                           {chip}
                         </span>
                       ))}
+                      {box.mirrorWeightsAreDemo && (
+                        <span className="border border-terminal-orange/60 px-1.5 py-0.5 text-[8px] uppercase tracking-widest text-terminal-orange">
+                          DEMO WEIGHTS
+                        </span>
+                      )}
                       <span className="ml-auto flex items-center gap-1 text-[8px] uppercase tracking-widest text-white/30 group-hover:text-white/70">
                         Open <ChevronRight size={10} />
                       </span>

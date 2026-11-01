@@ -446,6 +446,9 @@ export const BOXES: BoxDefinition[] = [
       "Weights are configuration, not a promise of performance.",
       "You must exit positions yourself; the box does not rebalance your wallet.",
     ],
+    mirrorWeightsAreDemo: true,
+    targetWeights:
+      "wBTC 50% · ETH 20% · LINK 10% · ONDO 5% · MKR 5% · UNI 2% · AAVE 2% · AVAX 2% · ENA 2% · SEI 2%",
     demo: {
       eyebrow: "MIRROR COMPLETE",
       headline: "You received the majors basket",
@@ -456,7 +459,7 @@ export const BOXES: BoxDefinition[] = [
         { symbol: "MKR", amount: "0.01", usd: "$50.00" },
         { symbol: "UNI", amount: "3.33", usd: "$50.00" },
       ],
-      note: "Weights follow the annual top-50 whitelist. Dust output below $1 is not returned.",
+      note: "Demo preview. Weights are illustrative; routing and any minimum output are set by the off-chain executor, not enforced by the contract.",
       route: "Sepolia -> mirror router -> top-50 basket",
       coingecko: true,
       dexscreener: true,
@@ -481,6 +484,8 @@ export const BOXES: BoxDefinition[] = [
       "Microcaps are less liquid and can move sharply.",
       "Weights are configuration, not a promise of performance.",
     ],
+    mirrorWeightsAreDemo: true,
+    targetWeights: "F 5% · SYRUP 5% · GFI 5% · CPOOL 5%",
     demo: {
       eyebrow: "MIRROR COMPLETE",
       headline: "You received the microcap basket",
@@ -516,6 +521,9 @@ export const BOXES: BoxDefinition[] = [
       "Fills over 24 hours; you may receive several small bags.",
       "Slippage is capped at 1% per coin.",
     ],
+    mirrorWeightsAreDemo: true,
+    targetWeights:
+      "UNB · LITH · STURDY · RLY · wTHT — 1% max slippage per coin, TWAP over 24h",
     demo: {
       eyebrow: "TWAP COMPLETE",
       headline: "You received 4 small bags",

@@ -50,6 +50,13 @@ const FORBIDDEN = [
 const RAINBOW_ACK = "I understand a random box will fire and I cannot choose it.";
 const BANNER = "Sepolia testnet demo — never send real funds.";
 const DIAMOND = "Dollar-for-dollar into sub-$10M coins, filled over 24 hours.";
+const SILVER_NOTE_OLD =
+  "Weights follow the annual top-50 whitelist. Dust output below $1 is not returned.";
+const SILVER_NOTE_NEW =
+  "Demo preview. Weights are illustrative; routing and any minimum output are set by the off-chain executor, not enforced by the contract.";
+const DEMO_WEIGHTS_LABEL = "DEMO WEIGHTS";
+const GOLD_DEMO_WEIGHTS = "F 5% · SYRUP 5% · GFI 5% · CPOOL 5%";
+const GOLD_BAD_WEIGHTS = "F 25% · SYRUP 25% · GFI 25% · CPOOL 25%";
 
 assert.ok(catalog.includes(WHITE), "catalog missing White verbatim string");
 assert.ok(copy.includes(WHITE), "copy.ts missing White verbatim string");
@@ -80,6 +87,32 @@ assert.ok(catalog.includes(BLACK_ACK), "catalog.ts missing Black acknowledgement
 assert.ok(home.includes(BLACK_LEGACY_CARD), "HomeClient.tsx missing Black card description");
 assert.ok(copy.includes(BANNER));
 assert.ok(catalog.includes(DIAMOND));
+assert.ok(catalog.includes(SILVER_NOTE_NEW), "catalog missing the OBS-601 replacement Silver demo note");
+assert.equal(
+  catalog.includes(SILVER_NOTE_OLD),
+  false,
+  "catalog still ships the unconfirmed $1 dust-floor claim",
+);
+assert.ok(catalog.includes(GOLD_DEMO_WEIGHTS), "catalog missing the Gold 5% demo weights");
+assert.ok(prototype.includes(DEMO_WEIGHTS_LABEL), "BoxFlowPrototype.tsx missing DEMO WEIGHTS label");
+assert.ok(app.includes(DEMO_WEIGHTS_LABEL), "BoxFlowApp.tsx missing DEMO WEIGHTS label");
+assert.equal(
+  prototype.includes(GOLD_BAD_WEIGHTS),
+  false,
+  "BoxFlowPrototype.tsx still ships the unconfirmed Gold 25% weights",
+);
+function boxBlock(id) {
+  const start = catalog.indexOf(`id: "${id}"`);
+  const next = catalog.indexOf('id: "', start + 1);
+  return catalog.slice(start, next === -1 ? undefined : next);
+}
+for (const id of ["silver", "gold", "diamond"]) {
+  assert.match(
+    boxBlock(id),
+    /mirrorWeightsAreDemo: true/,
+    `catalogue ${id} box missing mirrorWeightsAreDemo: true`,
+  );
+}
 assert.ok(catalog.includes('eyebrow: "DONATION COMPLETE"'));
 assert.equal(catalog.includes("yellow"), false);
 assert.equal(catalog.includes("pink"), false);
