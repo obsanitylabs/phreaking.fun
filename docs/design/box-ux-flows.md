@@ -400,8 +400,8 @@ charged in the native gas token" per the one-pager.
 **Black — wallet sweep**
 - Read-only list of every detected asset and USD value, grouped by chain.
 - Total USD is prominent; it is the number that will appear on the NFT.
-- Warning block (amber): "This sweeps the entire wallet. Tokens you want to keep must be moved
-  to another wallet first. This cannot be undone."
+- Warning block (amber): "The deposit amount in that transaction can be lost in full and
+  cannot be undone. Do not deposit assets you want to keep."
 - Acknowledgement checkbox: "I understand this is irreversible and will zero my balances."
 - The review screen repeats the total and the warning; the signature step links back to the
   asset list.
@@ -460,9 +460,9 @@ Mystery:
 
 Rainbow (trust-critical — the fired box's rules apply, including Black's wallet sweep):
 - `YOU RECEIVE` shows `??? — the output of a randomly fired box. Its deposit rules apply.`
-- Below it: `Possible outcomes: any other box can fire — from a 1:1 token swap (Red) to a full wallet sweep (Black).`
+- Below it: `Possible outcomes: any other box can fire — from a 1:1 token swap (Red) to Black.`
   Do not show a token-list "possible outputs" for Rainbow.
-- Add warning line: `If Black Box fires, the sweep covers your entire wallet — not just the assets you deposited.`
+- Add warning line: `The deposit amount in that transaction can be lost in full and cannot be undone. Do not deposit assets you want to keep.`
 - Required acknowledgement: "I understand a random box will fire and I cannot choose it."
 - CTO action: confirm the on-chain fireable set of `RainbowBox` (Black included?) so the copy
   states what the contract actually does.

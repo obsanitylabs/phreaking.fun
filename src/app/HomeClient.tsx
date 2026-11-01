@@ -11,7 +11,6 @@ import { ProgressBar } from "@/components/ui/progressBar";
 import SignalCard from "@/components/common/SignalCard";
 import GlobeCard from "@/components/common/GlobeCard";
 import MysteryBoxCard from "@/components/common/MysteryBoxCard";
-import EnhancedMysteryBoxModal from "@/components/modals/mysteryBox/EnhancedMysteryBoxModal";
 import ReceiptModal from "@/components/modals/receiptModal/ReceiptModal";
 import FrameReceiptModal from "@/components/modals/receiptModal/FrameReceiptModal";
 import ToastContainer from "@/components/ui/ToastContainer";
@@ -187,12 +186,6 @@ export default function HomeClient() {
     }
   };
 
-  const handleBoxFinish = (box: (typeof allBoxes)[0]) => {
-    setReceiptBox(box);
-    setSelectedBox(null);
-    setShowReceipt(true);
-  };
-
   const handleRestake = () => {
     setShowReceipt(false);
     setReceiptBox(null);
@@ -316,12 +309,28 @@ export default function HomeClient() {
       </div>
 
       {selectedBox && (
-        <EnhancedMysteryBoxModal
-          title={selectedBox.title}
-          image={selectedBox.image}
-          onClose={() => setSelectedBox(null)}
-          onFinish={() => handleBoxFinish(selectedBox)}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-6">
+          <div className="max-w-md border border-terminal-orange bg-black p-6 text-center font-mono text-terminal-orange">
+            <p className="text-sm font-bold uppercase tracking-widest">
+              Legacy route closed
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-white/70">
+              This page no longer starts a purchase or a token approval against
+              the replaced MysteryBox contract. Use the Sepolia demo at{" "}
+              <a className="underline" href="/boxes">
+                /boxes
+              </a>
+              .
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelectedBox(null)}
+              className="mt-4 border border-white/25 px-3 py-2 text-[11px] tracking-widest text-white focus:outline-none focus:ring-2 focus:ring-white"
+            >
+              CLOSE
+            </button>
+          </div>
+        </div>
       )}
 
       {showReceipt && receiptBox && transactionData && (

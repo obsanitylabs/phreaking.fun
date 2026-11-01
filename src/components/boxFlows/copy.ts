@@ -12,15 +12,26 @@ export const RAINBOW_YOU_RECEIVE =
   "??? — the output of a randomly fired box. Its deposit rules apply.";
 
 export const RAINBOW_POSSIBLE_OUTCOMES =
-  "Possible outcomes: any other box can fire — from a 1:1 token swap (Red) to a full wallet sweep (Black).";
+  "Possible outcomes: any other box can fire — from a 1:1 token swap (Red) to Black.";
 
+/** OBS-527 GC ruling: publish only this sentence for the Black Box sweep. */
 export const RAINBOW_BLACK_SWEEP_WARNING =
-  "If Black Box fires, the sweep covers your entire wallet — not just the assets you deposited.";
+  "The deposit amount in that transaction can be lost in full and cannot be undone. Do not deposit assets you want to keep.";
 
 export const RAINBOW_ACKNOWLEDGEMENT =
   "I understand a random box will fire and I cannot choose it.";
 
-export const MYSTERY_YOU_RECEIVE = "??? — one token from the active pool";
+/** Catalogue Mystery pool: six named tokens plus twelve more advertised on the card. */
+export const MYSTERY_POOL_TOKENS = ["BAX", "RIO", "LINK", "GFI", "PEAR", "wTHT"] as const;
+export const MYSTERY_POOL_ADDITIONAL_TOKENS = 12;
+export const MYSTERY_POOL_SIZE =
+  MYSTERY_POOL_TOKENS.length + MYSTERY_POOL_ADDITIONAL_TOKENS;
+
+export function mysteryYouReceive(poolSize = MYSTERY_POOL_SIZE): string {
+  return `??? — one token from the ${poolSize}-token pool`;
+}
+
+export const MYSTERY_YOU_RECEIVE = mysteryYouReceive();
 
 export const MYSTERY_ACKNOWLEDGEMENT =
   "I understand the output is random and cannot be chosen.";

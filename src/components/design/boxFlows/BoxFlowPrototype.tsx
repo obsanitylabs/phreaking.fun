@@ -1201,7 +1201,7 @@ export default function BoxFlowPrototype() {
                   </p>
                   <p className="mt-1 text-[10px] text-white/40">
                     Possible outcomes: any other box can fire — from a 1:1 token
-                    swap (Red) to a full wallet sweep (Black).
+                    swap (Red) to Black.
                   </p>
                 </>
               ) : (

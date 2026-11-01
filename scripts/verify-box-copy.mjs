@@ -21,9 +21,14 @@ const WHITE =
 const RAINBOW_RECEIVE =
   '??? — the output of a randomly fired box. Its deposit rules apply.';
 const RAINBOW_OUTCOMES =
-  "Possible outcomes: any other box can fire — from a 1:1 token swap (Red) to a full wallet sweep (Black).";
+  "Possible outcomes: any other box can fire — from a 1:1 token swap (Red) to Black.";
 const RAINBOW_SWEEP =
-  "If Black Box fires, the sweep covers your entire wallet — not just the assets you deposited.";
+  "The deposit amount in that transaction can be lost in full and cannot be undone. Do not deposit assets you want to keep.";
+const FORBIDDEN = [
+  "full wallet sweep",
+  "sweeps the entire wallet",
+  "covers your entire wallet",
+];
 const RAINBOW_ACK = "I understand a random box will fire and I cannot choose it.";
 const BANNER = "Sepolia testnet demo — never send real funds.";
 const DIAMOND = "Dollar-for-dollar into sub-$10M coins, filled over 24 hours.";
@@ -34,7 +39,13 @@ assert.ok(catalog.includes(RAINBOW_RECEIVE) === false);
 assert.ok(copy.includes(RAINBOW_RECEIVE));
 assert.ok(copy.includes(RAINBOW_OUTCOMES));
 assert.ok(copy.includes(RAINBOW_SWEEP));
+assert.ok(catalog.includes(RAINBOW_SWEEP));
 assert.ok(copy.includes(RAINBOW_ACK));
+for (const phrase of FORBIDDEN) {
+  assert.equal(copy.includes(phrase), false, `copy.ts still publishes "${phrase}"`);
+  assert.equal(catalog.includes(phrase), false, `catalog.ts still publishes "${phrase}"`);
+}
+assert.equal(copy.includes("entire wallet"), false, "copy.ts still publishes entire wallet");
 assert.ok(copy.includes(BANNER));
 assert.ok(catalog.includes(DIAMOND));
 assert.ok(catalog.includes('eyebrow: "DONATION COMPLETE"'));

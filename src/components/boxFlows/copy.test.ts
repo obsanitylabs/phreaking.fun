@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { BOXES, BOX_BY_ID } from "../design/boxFlows/catalog";
 import {
+  MYSTERY_YOU_RECEIVE,
   RAINBOW_ACKNOWLEDGEMENT,
   RAINBOW_BLACK_SWEEP_WARNING,
   RAINBOW_POSSIBLE_OUTCOMES,
@@ -65,7 +66,7 @@ test("Rainbow review disclosure matches spec v1.1 character-for-character", () =
   assert.equal(disclosure.youReceive, RAINBOW_YOU_RECEIVE);
   assert.equal(
     disclosure.possibleOutcomes,
-    "Possible outcomes: any other box can fire — from a 1:1 token swap (Red) to a full wallet sweep (Black).",
+    "Possible outcomes: any other box can fire — from a 1:1 token swap (Red) to Black.",
   );
   assert.equal(disclosure.possibleOutcomes, RAINBOW_POSSIBLE_OUTCOMES);
   assert.equal(disclosure.possibleOutputs, undefined);
@@ -77,7 +78,7 @@ test("Rainbow review disclosure matches spec v1.1 character-for-character", () =
   assert.ok(reviewWarnings(rainbow).includes(RAINBOW_BLACK_SWEEP_WARNING));
   assert.equal(
     RAINBOW_BLACK_SWEEP_WARNING,
-    "If Black Box fires, the sweep covers your entire wallet — not just the assets you deposited.",
+    "The deposit amount in that transaction can be lost in full and cannot be undone. Do not deposit assets you want to keep.",
   );
 });
 
@@ -282,13 +283,14 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
   assert.equal(QUOTE_DEMO_LABEL.includes("GMX"), true);
 
   const blue = initialFlowState(BOX_BY_ID.blue);
+  blue.rows = [{ token: "ETH", amount: "0.5" }];
   blue.quoteIssuedAt = issuedAt;
   const blueLive = buildSimulatedQuote(BOX_BY_ID.blue, blue, issuedAt, {
     source: "chainlink",
     prices: { ETH: 2000, USDC: 1 },
   });
   assert.equal(blueLive.outputBlocked, false);
-  assert.match(blueLive.estimatedReceive, /\$100\.00 offer/);
+  assert.match(blueLive.estimatedReceive, /\$1,000\.00 offer/);
   assert.match(blueLive.outputNote, /not a pool fill/);
   assert.equal(offerInsideBand(100, 101), true);
   assert.equal(offerInsideBand(100, 102), false);
@@ -374,7 +376,7 @@ test("simulated quote expires at 60s and warns inside 30s", () => {
     prices: { ETH: 2000, USDC: 1 },
   });
   assert.match(mystery.estimatedReceive, /random output/);
-  assert.match(reviewReceiveLine(BOX_BY_ID.mystery, mystery), /random/);
+  assert.equal(reviewReceiveLine(BOX_BY_ID.mystery, mystery), MYSTERY_YOU_RECEIVE);
   assert.equal(mystery.outputBlocked, false);
   const mysteryRows = resultAssetRows(BOX_BY_ID.mystery, mystery);
   assert.equal(mysteryRows[0]?.quoted, false);
