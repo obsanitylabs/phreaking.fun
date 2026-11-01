@@ -5,6 +5,7 @@ import AssetsModal from "@/components/modals/assets/AssetsModal";
 import InformationModal from "@/components/modals/information/InformationModal";
 import LiveGameModal from "../modals/live-game/LiveGameModal";
 import TopWinnersModal from "../modals/top-winners/TopWinners";
+import GovernancePanel from "./GovernancePanel";
 
 const AdminData = () => {
   const [collapsed, setCollapsed] = useState(true);
@@ -109,6 +110,10 @@ const AdminData = () => {
             <span>LIVE GAME</span>
           </button>
         </nav>
+      </div>
+
+      <div className="mt-6">
+        <GovernancePanel />
       </div>
 
       {activeModal === "assets" && <AssetsModal onClose={closeModal} />}

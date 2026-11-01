@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "lint:fix": "eslint --fix .",
+    "test:governance": "node --test src/lib/governance/governance.test.mjs",
+    "verify:governance": "node scripts/verify-governance.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
