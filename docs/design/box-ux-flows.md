@@ -96,7 +96,7 @@ The hover state (desktop) or expanded state (mobile) adds the long copy from §4
 | 5 | Orange | Refresh | Shit-to-Bit | Dust / selected coins | WBTC | — |
 | 6 | Purple | Refresh | NFT highway | NFTs or altcoins | Altcoins or NFTs of similar value | — |
 | 7 | White | Adrenaline | Donate | Any token | Charity donation, anonymous | `NO RECEIPT` |
-| 8 | Black | Adrenaline | Rage quit | Entire wallet | Harold NFT with USD value sent | `IRREVERSIBLE` |
+| 8 | Black | Adrenaline | Rage quit | Full balance of one token | Harold NFT with USD value sent | `IRREVERSIBLE` |
 | 9 | Rainbow | Adrenaline | Anything goes | 1–4 tokens | Output of a randomly fired box | `RANDOM` |
 | 10 | Checkered | Adrenaline | Portfolio shuffle | Entire portfolio | Another player's portfolio | `IRREVERSIBLE` |
 | 11 | Russian Flag | Adrenaline | 24h GMX trade | USDC value | Long/short PnL after 24h, profit taxed | `24H LOCK` |
@@ -114,7 +114,7 @@ The hover state (desktop) or expanded state (mobile) adds the long copy from §4
 - **Orange Box** — "Sweep dust and selected coins into WBTC."
 - **Purple Box** — "Dump unwanted NFTs for altcoins — or flip altcoins into NFTs."
 - **White Box** — "Donate crypto to a random charity through TheGivingBlock."
-- **Black Box** — "Throw your entire wallet into the black hole. Keep a Harold NFT as the receipt."
+- **Black Box** — "Deposit the full balance of one token into the black hole. Keep a Harold NFT as the receipt."
 - **Rainbow Box** — "Approve once. A random box fires — you won't know which until it lands."
 - **Checkered Box** — "Trade your whole portfolio with another player. No takebacks."
 - **Russian Flag** — "A random 24-hour GMX long or short on Russian-developed coins."
@@ -151,10 +151,10 @@ Black Box Harold collection."
 swapped to USDC and donated anonymously. **No tax receipt is issued.** If you need a receipt,
 donate directly through TheGivingBlock instead."
 
-**Black Box** — "Rage quit. Every token in the connected wallet is swept into a one-time deposit
-address, valued in USD, and sent to the dev black hole. You receive a Hide The Pain Harold NFT
-with the USD value printed in the corner. This is irreversible and zeroes the wallet's
-balances."
+**Black Box** — "Rage quit. Your deposit of a single token — up to its full balance — goes to a
+one-time deposit address, valued in USD, and on to the dev black hole. You receive a Hide The
+Pain Harold NFT with the USD value printed in the corner. This is irreversible and zeroes the
+deposited token's balance."
 
 **Rainbow Box** — "Approves a transaction that randomly triggers one of the other boxes. The
 deposit rules of the fired box apply. You will not know which box fired until the result
@@ -402,7 +402,7 @@ charged in the native gas token" per the one-pager.
 - Total USD is prominent; it is the number that will appear on the NFT.
 - Warning block (amber): "The deposit amount in that transaction can be lost in full and
   cannot be undone. Do not deposit assets you want to keep."
-- Acknowledgement checkbox: "I understand this is irreversible and will zero my balances."
+- Acknowledgement checkbox: "I understand this deposit is irreversible and will zero the deposited token's balance."
 - The review screen repeats the total and the warning; the signature step links back to the
   asset list.
 
@@ -792,7 +792,7 @@ The UI must render paused and cap-reached states:
 - `I understand the output is random and cannot be chosen.` (Mystery)
 - `I understand a random box will fire and I cannot choose it.` (Rainbow)
 - `I understand this donation is anonymous and I will not receive a tax receipt.`
-- `I understand this is irreversible and will zero my balances.` (Black)
+- `I understand this deposit is irreversible and will zero the deposited token's balance.` (Black)
 - `I understand I may receive less value and there are no takebacks.` (Checkered)
 - `I understand my funds are locked for 24 hours and profit is taxed.`
 - `Your funds are in the route. We are checking.`

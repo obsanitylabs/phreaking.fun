@@ -73,7 +73,7 @@ export default function HomeClient() {
           image: "/boxes/blackBox.svg",
           available: false,
           description:
-            "Rage quit. Throw your entire wallet into a black hole and zero out your balances. Receive a minted Hide The Pain Harold NFT displaying the dollar value sent.",
+            "Rage quit. Throw a token's full balance into a black hole and zero out that token's balance. Receive a minted Hide The Pain Harold NFT displaying the dollar value sent.",
           type: "Rage Quit",
         },
       ],

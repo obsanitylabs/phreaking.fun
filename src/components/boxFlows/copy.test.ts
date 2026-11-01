@@ -82,6 +82,27 @@ test("Rainbow review disclosure matches spec v1.1 character-for-character", () =
   );
 });
 
+test("Black Box copy states a single-token deposit per the GC ruling", () => {
+  const black = BOX_BY_ID.black;
+  assert.equal(
+    black.oneLine,
+    "Deposit the full balance of one token into the black hole. Keep a Harold NFT as the receipt.",
+  );
+  assert.equal(
+    black.detail,
+    "Rage quit. Your deposit of a single token — up to its full balance — goes to a one-time deposit address, valued in USD, and on to the dev black hole. You receive a Hide The Pain Harold NFT with the USD value printed in the corner. This is irreversible and zeroes the deposited token's balance.",
+  );
+  assert.equal(
+    black.acknowledgement,
+    "I understand this deposit is irreversible and will zero the deposited token's balance.",
+  );
+  assert.ok(
+    black.warnings.includes(
+      "The deposit amount in that transaction can be lost in full and cannot be undone. Do not deposit assets you want to keep.",
+    ),
+  );
+});
+
 test("White verbatim panel pins the exact string and a 14px floor", () => {
   const white = BOX_BY_ID.white;
   const disclosure = reviewDisclosure(white);

@@ -296,9 +296,9 @@ export const BOXES: BoxDefinition[] = [
     accent: "#FFFFFF",
     icon: "skull",
     oneLine:
-      "Throw your entire wallet into the black hole. Keep a Harold NFT as the receipt.",
+      "Deposit the full balance of one token into the black hole. Keep a Harold NFT as the receipt.",
     detail:
-      "Rage quit. Every token in the connected wallet is swept into a one-time deposit address, valued in USD, and sent to the dev black hole. You receive a Hide The Pain Harold NFT with the USD value printed in the corner. This is irreversible and zeroes the wallet's balances.",
+      "Rage quit. Your deposit of a single token — up to its full balance — goes to a one-time deposit address, valued in USD, and on to the dev black hole. You receive a Hide The Pain Harold NFT with the USD value printed in the corner. This is irreversible and zeroes the deposited token's balance.",
     assetMode: "wallet",
     flowKind: "wallet-sweep",
     resultKind: "harold-nft",
@@ -311,7 +311,7 @@ export const BOXES: BoxDefinition[] = [
     ],
     requiresAcknowledgement: true,
     acknowledgement:
-      "I understand this is irreversible and will zero my balances.",
+      "I understand this deposit is irreversible and will zero the deposited token's balance.",
     demo: {
       eyebrow: "RAGE QUIT COMPLETE",
       headline: "Hide The Pain Harold #4821",
