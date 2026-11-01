@@ -37,6 +37,7 @@ import {
   WHITE_BOX_RECEIPT_LANGUAGE,
 } from "./catalog";
 import { BoxDefinition, BoxToggle, DemoResult } from "./types";
+import { SepoliaBanner } from "@/components/boxFlows/SepoliaBanner";
 
 type Step = "configure" | "review" | "sign" | "finality" | "result" | "error";
 
@@ -1608,6 +1609,7 @@ export default function BoxFlowPrototype() {
       className="relative min-h-screen bg-terminal-black font-mono text-terminal-white"
       style={{ ["--accent" as string]: accent }}
     >
+      <SepoliaBanner />
       <div
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 z-0 transition-all duration-500"
