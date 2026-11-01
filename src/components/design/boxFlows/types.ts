@@ -95,6 +95,8 @@ export interface BoxDefinition {
   requiresAcknowledgement?: boolean;
   acknowledgement?: string;
   eligibility?: { id: string; label: string }[];
+  mirrorWeightsAreDemo?: boolean;
+  targetWeights?: string;
   demo: DemoResult;
 }
 
