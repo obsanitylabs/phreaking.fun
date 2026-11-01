@@ -505,6 +505,23 @@ export function BoxFlowApp() {
     () => (selected && state ? stagesFor(selected, state.toggles) : []),
     [selected, state],
   );
+  const stageCount = stages.length;
+
+  // Spec §6.6 — the overlay reports observed progress. Advance one stage at a
+  // time so the production flow tracks the prototype instead of freezing on
+  // SUBMITTED. Runs under reduced motion too: the stage list is content, not
+  // the decorative scanline/pulse.
+  useEffect(() => {
+    if (state?.step !== "finality" || stageCount <= 1) return;
+    const timer = window.setInterval(() => {
+      setState((current) => {
+        if (!current || current.step !== "finality") return current;
+        if (current.stageIndex >= stageCount - 1) return current;
+        return { ...current, stageIndex: current.stageIndex + 1 };
+      });
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [state?.step, selectedId, stageCount]);
 
   const catalogue = (
     <main className="mx-auto max-w-[1400px] px-4 pb-16 pt-6 sm:px-8">
