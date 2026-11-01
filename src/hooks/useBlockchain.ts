@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAccount, useWriteContract, usePublicClient } from "wagmi";
-import { parseUnits, formatUnits, parseEther, erc20Abi } from "viem";
+import { parseUnits, formatUnits, parseEther } from "viem";
 import { mysteryBoxABI } from "@/abi/mysteryBoxABI";
 import { currencies, getBoxId, addresses } from "@/constants/currencies";
 import { createPublicClient, http } from "viem";
@@ -152,74 +152,6 @@ export const useBlockchain = () => {
     }
   }, [address, isConnected, isFetchingBalances]);
 
-  const approveTokens = useCallback(
-    async (tokenAddresses: string[], amounts: string[]) => {
-      if (!address || !isConnected || !publicClient) throw new Error("Wallet not connected");
-
-      const tokensToApprove = tokenAddresses.filter(
-        (addr) =>
-          addr !== "0x0000000000000000000000000000000000000000" && addr !== "",
-      );
-
-      for (let i = 0; i < tokensToApprove.length; i++) {
-        const tokenAddress = tokensToApprove[i];
-        const currency = currencies.find((c) => c.address === tokenAddress);
-        if (!currency) continue;
-
-        try {
-          const allowance = await publicClient.readContract({
-            address: tokenAddress as `0x${string}`,
-            abi: erc20Abi,
-            functionName: "allowance",
-            args: [address, addresses.mysteryBoxAddress as `0x${string}`],
-          });
-
-          const requiredAmount = parseUnits(amounts[i], currency.decimals);
-          
-          const approvalAmount = requiredAmount;
-          
-
-          if (!allowance || allowance < requiredAmount) {
-            const approveTx = await writeContractAsync({
-              address: tokenAddress as `0x${string}`,
-              abi: erc20Abi,
-              functionName: "approve",
-              args: [
-                addresses.mysteryBoxAddress as `0x${string}`,
-                approvalAmount, 
-              ],
-            });
-            
-            const receipt = await publicClient.waitForTransactionReceipt({
-              hash: approveTx,
-            });
-            
-            if (receipt.status === "reverted") {
-              throw new Error(`Aprovação de ${currency.code} falhou`);
-            }
-            
-            const newAllowance = await publicClient.readContract({
-              address: tokenAddress as `0x${string}`,
-              abi: erc20Abi,
-              functionName: "allowance",
-              args: [address, addresses.mysteryBoxAddress as `0x${string}`],
-            });
-            
-            
-            if (newAllowance < requiredAmount) {
-              throw new Error(`Aprovação de ${currency.code} não foi suficiente. Esperado: ${requiredAmount}, Obtido: ${newAllowance}`);
-            }
-          } else {
-            console.log(`Token ${currency.code} does not require approval`);
-          }
-        } catch (error) {
-          throw new Error(`Failed to approve token ${currency.code}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-      }
-    },
-    [address, isConnected, publicClient, writeContractAsync],
-  );
-
   const formatTokenAmount = useCallback(
     (rawValue: string, decimals: number) => {
       try {
@@ -344,16 +276,6 @@ export const useBlockchain = () => {
           }
         });
 
-        const erc20Tokens = tokenAddresses.filter(
-          (addr) =>
-            addr !== "0x0000000000000000000000000000000000000000" &&
-            addr !== "",
-        );
-
-        if (erc20Tokens.length > 0) {
-          await approveTokens(tokenAddresses, amounts);
-        }
-
         const tokenAmounts = amounts.map((amount, index) => {
           const currency = currencies.find(
             (c) => c.address === tokenAddresses[index],
@@ -437,7 +359,6 @@ export const useBlockchain = () => {
       isConnected,
       selectedTokens,
       balances,
-      approveTokens,
       writeContractAsync,
       publicClient,
       processRewards,

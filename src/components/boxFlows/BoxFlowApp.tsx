@@ -10,6 +10,7 @@ import {
   TOOLKITS,
 } from "@/components/design/boxFlows/catalog";
 import type { BoxDefinition, BoxId } from "@/components/design/boxFlows/types";
+import { useWeb3 } from "@/contexts/Web3Context";
 import {
   capReachedCopy,
   gateFromSnapshot,
@@ -161,6 +162,14 @@ export function BoxFlowApp() {
   stateRef.current = state;
 
   const selected = selectedId ? BOX_BY_ID[selectedId] : null;
+  const { address } = useWeb3();
+
+  const depositUsd1e8 = useMemo(() => {
+    if (!selected || !state) return BigInt(0);
+    const value = depositUsd(selected, state, spot?.prices);
+    if (!Number.isFinite(value) || value <= 0) return BigInt(0);
+    return BigInt(Math.round(value * 1e8));
+  }, [selected, state, spot]);
 
   useEffect(() => {
     const ethereum = (
@@ -186,7 +195,12 @@ export function BoxFlowApp() {
     }
     let cancelled = false;
     setStatus(null);
-    readBoxStatus({ boxId: selected.id, search: window.location.search }).then((snapshot) => {
+    readBoxStatus({
+      boxId: selected.id,
+      search: window.location.search,
+      depositUsd1e8,
+      account: address ? (address as `0x${string}`) : null,
+    }).then((snapshot) => {
       if (cancelled) return;
       setStatus(snapshot);
       setState((current) => {
@@ -224,7 +238,7 @@ export function BoxFlowApp() {
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [selected, depositUsd1e8, address]);
 
   useEffect(() => {
     if (!selected) {
@@ -903,32 +917,6 @@ function ConfigureStep({
         </p>
       )}
       {quote && <QuotePanel quote={quote} onRefresh={onRefreshQuote} />}
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ["none", "Clear gate"],
-            ["paused", "Preview paused"],
-            ["cap", "Preview cap"],
-            ["wrong-network", "Preview wrong network"],
-          ] as const
-        ).map(([gate, label]) => (
-          <button
-            key={gate}
-            type="button"
-            data-testid={`set-gate-${gate}`}
-            onClick={() =>
-              onChange({
-                gate,
-                capKind: gate === "cap" ? "tx" : null,
-                notice: gate === "none" ? null : undefined,
-              })
-            }
-            className="border border-white/15 px-2 py-1 text-[10px] uppercase tracking-widest text-white/50 focus:outline-none focus:ring-2 focus:ring-white"
-          >
-            {label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

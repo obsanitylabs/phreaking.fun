@@ -3,6 +3,8 @@ import { outputValueKind, type SimulatedQuote } from "./quoteModel";
 import {
   IRREVERSIBLE_HEADING,
   MYSTERY_ACKNOWLEDGEMENT,
+  MYSTERY_POOL_ADDITIONAL_TOKENS,
+  MYSTERY_POOL_TOKENS,
   MYSTERY_YOU_RECEIVE,
   PURPLE_SIMILAR_VALUE,
   RAINBOW_ACKNOWLEDGEMENT,
@@ -51,7 +53,7 @@ export function reviewDisclosure(box: BoxDefinition): ReviewDisclosure {
   if (box.id === "mystery" || box.flowKind === "random-swap") {
     return {
       youReceive: MYSTERY_YOU_RECEIVE,
-      possibleOutputs: "Possible outputs: BAX · RIO · LINK · GFI · PEAR · wTHT · +12 more",
+      possibleOutputs: `Possible outputs: ${MYSTERY_POOL_TOKENS.join(" · ")} · +${MYSTERY_POOL_ADDITIONAL_TOKENS} more`,
       extraWarnings: [],
       acknowledgement: box.acknowledgement ?? MYSTERY_ACKNOWLEDGEMENT,
     };
@@ -119,8 +121,10 @@ export function reviewReceiveLine(
   override?: string,
 ): string {
   if (override) return override;
+  const randomBox = box.flowKind === "random-swap" || box.flowKind === "random-box";
   if (
     quote &&
+    !randomBox &&
     (quote.outputBlocked ||
       quote.outputNote.includes("not a pool") ||
       quote.outputNote.includes("not a live pool"))

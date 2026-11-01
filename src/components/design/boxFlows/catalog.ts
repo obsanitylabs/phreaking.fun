@@ -305,7 +305,7 @@ export const BOXES: BoxDefinition[] = [
     status: "sepolia",
     chips: ["IRREVERSIBLE"],
     warnings: [
-      "This sweeps the entire wallet on every supported EVM chain.",
+      "The deposit amount in that transaction can be lost in full and cannot be undone. Do not deposit assets you want to keep.",
       "Move anything you want to keep to another wallet first.",
       "The USD total shown on review is the value printed on the NFT.",
     ],
@@ -339,7 +339,7 @@ export const BOXES: BoxDefinition[] = [
     chips: ["RANDOM"],
     warnings: [
       "A random box fires. Its rules and risks apply to your deposit.",
-      "If Black Box fires, the sweep covers your entire wallet — not just the assets you deposited.",
+      "The deposit amount in that transaction can be lost in full and cannot be undone. Do not deposit assets you want to keep.",
       "You cannot choose or cancel the fired box after signing.",
     ],
     requiresAcknowledgement: true,

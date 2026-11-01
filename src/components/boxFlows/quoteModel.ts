@@ -177,6 +177,18 @@ export function offerInsideBand(deposit: number, offer: number): boolean {
   return Math.abs(offer - deposit) / deposit <= BLUE_SLIPPAGE_BAND + 1e-9;
 }
 
+/**
+ * USD total of Blue's offered basket, read from the basket's own catalogue
+ * amounts. It is computed independently of the user's deposit so the ±1%
+ * band comparison can actually fail. The 5% platform fee stays on its own line.
+ */
+export function offeredBasketUsd(box: BoxDefinition): number {
+  return box.demo.assets.reduce((sum, asset) => {
+    const usd = Number(asset.usd.replace(/[^0-9.]/g, ""));
+    return Number.isFinite(usd) ? sum + usd : sum;
+  }, 0);
+}
+
 export function estimatedReceive(
   box: BoxDefinition,
   state: FlowState,
@@ -253,12 +265,13 @@ export function estimatedReceive(
     };
   }
   if (box.id === "blue") {
-    // Spec §6.3.1: the offered basket matches deposit USD within ±1%.
-    // A 5% output haircut would always sit outside that band, so the offer
-    // uses the spot deposit. The platform fee stays on its own line.
-    const inside = offerInsideBand(gross, gross);
+    // Spec §6.3.1: the offered basket must sit within ±1% of the deposit.
+    // Compare the basket's own USD total to the deposit. A 5% output haircut
+    // would always sit outside that band, so the fee stays on its own line.
+    const offer = offeredBasketUsd(box);
+    const inside = offerInsideBand(gross, offer);
     return {
-      line: inside ? `~ ${formatUsd(gross)} offer · XCM + RIO + LINK` : "Offer outside ±1%",
+      line: inside ? `~ ${formatUsd(offer)} offer · XCM + RIO + LINK` : "Offer outside ±1%",
       blocked: !inside,
       note: inside ? OFFER_BAND_LABEL : OFFER_OUTSIDE_BAND,
     };

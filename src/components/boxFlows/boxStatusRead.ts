@@ -201,20 +201,53 @@ export async function readBoxStatus(input: {
     };
   }
 
-  const asBig = (index: number) =>
-    results[index]?.status === "success" ? BigInt(results[index].result as bigint | number) : ZERO;
-  const asNum = (index: number) => Number(asBig(index));
+  const readBig = (index: number): bigint | null => {
+    const entry = results[index];
+    if (entry?.status !== "success") return null;
+    try {
+      return BigInt(entry.result as bigint | number);
+    } catch {
+      return null;
+    }
+  };
+  const asNum = (index: number) => {
+    const value = readBig(index);
+    return value === null ? 0 : Number(value);
+  };
+
+  // A failed cap sub-read is a read error, not "unlimited". Fail closed so the
+  // gate stays paused rather than letting Review/Confirm proceed.
+  const perTransactionCap = readBig(2);
+  const perWalletCap = readBig(3);
+  const totalValueAtRiskCap = readBig(4);
+  const totalValueAtRisk = readBig(5);
+  const walletDeposited = input.account ? readBig(6) : ZERO;
+  if (
+    perTransactionCap === null ||
+    perWalletCap === null ||
+    totalValueAtRiskCap === null ||
+    totalValueAtRisk === null ||
+    walletDeposited === null
+  ) {
+    return {
+      ...ZERO_SNAPSHOT,
+      source: "error",
+      address,
+      paused: true,
+      note: "A cap read did not return. Review stays blocked until MysteryBoxBase answers.",
+    };
+  }
 
   const snapshot: BoxStatusSnapshot = {
     source: "contract",
     address,
     paused,
     unpauseReleaseAt: asNum(1),
-    perTransactionCap: asBig(2),
-    perWalletCap: asBig(3),
-    totalValueAtRiskCap: asBig(4),
-    totalValueAtRisk: asBig(5),
-    walletDeposited: input.account ? asBig(6) : ZERO,
+    perTransactionCap,
+    perWalletCap,
+    totalValueAtRiskCap,
+    totalValueAtRisk,
+    walletDeposited,
     blockingCap: null,
     note: `Read from ${address} on chain ${SEPOLIA_CHAIN_ID}.`,
   };

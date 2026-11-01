@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { parseUnits, formatUnits, erc20Abi } from 'viem';
+import { parseUnits, formatUnits } from 'viem';
 import { mysteryBoxABI } from '@/abi/mysteryBoxABI';
 import { currencies, addresses } from '@/constants/currencies';
 import { BoxType } from '@/stores/mysteryBoxStore';
@@ -99,7 +99,6 @@ export interface BlockchainActions {
   updatePurchaseState: (updates: Partial<PurchaseState>) => void;
   setError: (error: string | null) => void;
   
-  approveTokens: (tokenAddresses: string[], amounts: string[], wagmiWriteContract?: any, publicClient?: any, userAddress?: string, isConnected?: boolean) => Promise<void>;
 }
 
 export type BlockchainStore = BlockchainState & BlockchainActions;
@@ -316,13 +315,6 @@ export const useBlockchainStore = create<BlockchainStore>()(
           );
           if (ethIndex !== -1) {
             ethValue = parseUnits(amounts[ethIndex], 18);
-          }
-
-          const erc20Tokens = tokens.filter(
-            (addr) => addr !== "0x0000000000000000000000000000000000000000" && addr !== "",
-          );
-          if (erc20Tokens.length > 0) {
-            await get().approveTokens(erc20Tokens, amounts, wagmiWriteContract, publicClient, userAddress, isConnected);
           }
 
           const result = await wagmiWriteContract({
@@ -587,70 +579,6 @@ export const useBlockchainStore = create<BlockchainStore>()(
         });
       },
 
-      approveTokens: async (
-        tokenAddresses: string[], 
-        amounts: string[], 
-        wagmiWriteContract?: any, 
-        publicClient?: any, 
-        userAddress?: string, 
-        isConnected?: boolean
-      ) => {
-        if (!userAddress || !isConnected || !publicClient || !wagmiWriteContract) {
-          throw new Error("Wallet not connected or missing dependencies");
-        }
-
-        const tokensToApprove = tokenAddresses.filter(
-          (addr) => addr !== "0x0000000000000000000000000000000000000000" && addr !== "",
-        );
-
-        for (let i = 0; i < tokensToApprove.length; i++) {
-          const tokenAddress = tokensToApprove[i];
-          const currency = currencies.find((c) => c.address === tokenAddress);
-          if (!currency) continue;
-
-          try {
-            const allowance = await publicClient.readContract({
-              address: tokenAddress as `0x${string}`,
-              abi: erc20Abi,
-              functionName: "allowance",
-              args: [userAddress, addresses.mysteryBoxAddress as `0x${string}`],
-            });
-
-            const requiredAmount = parseUnits(amounts[i], currency.decimals);
-            const approvalAmount = requiredAmount;
-
-            if (!allowance || allowance < requiredAmount) {
-              const approveTx = await wagmiWriteContract({
-                address: tokenAddress as `0x${string}`,
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [addresses.mysteryBoxAddress as `0x${string}`, approvalAmount],
-              });
-              
-              const receipt = await publicClient.waitForTransactionReceipt({
-                hash: approveTx,
-              });
-              
-              if (receipt.status === "reverted") {
-                throw new Error(`Aprovação de ${currency.code} falhou`);
-              }
-              
-              const newAllowance = await publicClient.readContract({
-                address: tokenAddress as `0x${string}`,
-                abi: erc20Abi,
-                functionName: "allowance",
-                args: [userAddress, addresses.mysteryBoxAddress as `0x${string}`],
-              });
-              
-              if (newAllowance < requiredAmount) {
-                throw new Error(`Aprovação de ${currency.code} não foi suficiente`);
-              }
-            }
-          } catch (error) {
-            throw new Error(`Failed to approve token ${currency.code}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          }
-        }
-      },
     }))
   )
 );
