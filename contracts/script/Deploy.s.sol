@@ -38,8 +38,16 @@ import {ReferralRegistry} from "../src/ReferralRegistry.sol";
 ///          - KEEPER_A / KEEPER_B are the two independent oracle quote keepers (one per price source).
 ///          - EXECUTOR receives the box executor role on all 17 variants in this broadcast. Without it a fresh
 ///            deployment reverts on every deposit ("<Box>: executor not set"), so it is a REQUIRED env value.
-///          - Caps applied from CFO-signed env values (USD 1e8); if unset they are left at 0 (= unlimited) and
-///            MUST be set before launch — logged loudly below.
+    ///          - Caps applied from CFO-signed env values (USD 1e8); if unset they are left at 0 (= unlimited) and
+    ///            MUST be set before launch — logged loudly below.
+    ///          - Chain-id guard (OBS-320): on any chain other than Sepolia (11155111) the deploy HARD-FAILS if
+    ///            any of VAR_CAP_USD / TX_CAP_USD / WALLET_CAP_USD is unset. On-chain a cap of 0 means UNLIMITED
+    ///            (MysteryBoxBase._checkDepositCaps skips zero caps), so an unset cap on mainnet would deploy an
+    ///            unbounded fleet. Sepolia keeps the warn-but-proceed behaviour for test deploys.
+    ///
+    ///         Testability: `run()` reads env (the CLI path). Tests call `runWithConfig` with an explicit
+    ///         `DeployConfig` so guard/deploy assertions never depend on process-global env, which leaks and
+    ///         races across concurrently executed test functions (OBS-621).
 /// @dev    Run: forge script script/Deploy.s.sol --rpc-url <sepolia-rpc> --broadcast --private-key $DEPLOY_KEY
 ///         Required env: ADMIN (signer address == deployer key's address), MULTISIG, GUARDIAN, EXECUTOR, KEEPER_A, KEEPER_B.
 ///         Optional env: VAR_CAP_USD / TX_CAP_USD / WALLET_CAP_USD (USD 1e8 integers),
@@ -68,21 +76,68 @@ contract DeployPhreaking is Script {
 
     bytes32 constant DEFAULT_ADMIN_ROLE = 0x0000000000000000000000000000000000000000000000000000000000000000;
 
+    /// @notice Explicit deploy configuration. `run()` assembles this from env vars for the CLI path;
+    ///         tests call `runWithConfig` directly so behaviour never depends on process-global env.
+    struct DeployConfig {
+        address admin;
+        address multisig;
+        address guardian;
+        address executor;
+        address keeperA;
+        address keeperB;
+        uint256 varCap;
+        uint256 txCap;
+        uint256 walCap;
+        uint256 ethPriceSeed;
+        uint256 referralMaxSupply;
+    }
+
+    /// @notice CLI entrypoint: reads all values from the process environment and checks out the deploy.
     function run() external {
         Vm vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-        address admin    = vm.envAddress("ADMIN");   // signer of this broadcast == deployer EOA.
-        address multisig = vm.envAddress("MULTISIG"); // final DEFAULT_ADMIN_ROLE holder (2-of-3).
-        address guardian = vm.envAddress("GUARDIAN"); // on-call emergency pause role.
-        address executor = vm.envAddress("EXECUTOR"); // trusted off-chain settlement actor (see NatSpec above).
+        runWithConfig(DeployConfig({
+            admin:             vm.envAddress("ADMIN"),   // signer of this broadcast == deployer EOA.
+            multisig:          vm.envAddress("MULTISIG"), // final DEFAULT_ADMIN_ROLE holder (2-of-3).
+            guardian:          vm.envAddress("GUARDIAN"), // on-call emergency pause role.
+            executor:          vm.envAddress("EXECUTOR"), // trusted off-chain settlement actor (see NatSpec above).
+            keeperA:           vm.envAddress("KEEPER_A"),
+            keeperB:           vm.envAddress("KEEPER_B"),
+            varCap:            _optionalEnvUint(vm, "VAR_CAP_USD"),
+            txCap:             _optionalEnvUint(vm, "TX_CAP_USD"),
+            walCap:            _optionalEnvUint(vm, "WALLET_CAP_USD"),
+            ethPriceSeed:      _optionalEnvUint(vm, "ETH_PRICE_USD"),
+            referralMaxSupply: _optionalEnvUint(vm, "REFERRAL_MAX_SUPPLY")
+        }));
+    }
+
+    /// @notice Deploy from an explicit config (used by tests; also callable from another script).
+    function runWithConfig(DeployConfig memory cfg) public {
+        Vm vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+        address admin    = cfg.admin;
+        address multisig = cfg.multisig;
+        address guardian = cfg.guardian;
+        address executor = cfg.executor;
         require(admin != multisig, "DeployPhreaking: ADMIN and MULTISIG must differ");
         require(executor != address(0), "DeployPhreaking: EXECUTOR must be set");
         require(executor != admin && executor != multisig && executor != guardian, "DeployPhreaking: EXECUTOR must be a distinct contract");
 
-        uint256 varCap = _optionalEnvUint(vm, "VAR_CAP_USD");
-        uint256 txCap  = _optionalEnvUint(vm, "TX_CAP_USD");
-        uint256 walCap = _optionalEnvUint(vm, "WALLET_CAP_USD");
+        uint256 varCap = cfg.varCap;
+        uint256 txCap  = cfg.txCap;
+        uint256 walCap = cfg.walCap;
+
+        // ---- OBS-320 chain-id guard: never deploy an unbounded fleet off-Sepolia -------------------
+        // A cap of 0 means UNLIMITED on-chain (MysteryBoxBase._checkDepositCaps skips zero caps), so a
+        // non-Sepolia (e.g. mainnet) deploy with any cap unset would ship an unbounded fleet. Sepolia
+        // (11155111) keeps the warn-but-proceed behaviour below for test deployments.
+        uint256 chainId = block.chainid;
+        bool onSepolia = chainId == 11155111;
+        require(
+            onSepolia || (varCap != 0 && txCap != 0 && walCap != 0),
+            "DEPLOY ABORT: non-Sepolia deploy with cap(s) unset - cap 0 = UNLIMITED on-chain; set VAR_CAP_USD / TX_CAP_USD / WALLET_CAP_USD"
+        );
 
         console.log("=== phreaking.fun deployment (OBS-129) ===");
+        console.log("chainId:  ", chainId);
         console.log("admin:    ", admin);
         console.log("multisig: ", multisig);
         console.log("guardian: ", guardian);
@@ -103,8 +158,8 @@ contract DeployPhreaking is Script {
 
         // Two sources, two keepers. A quote is accepted only when both agree within 1%.
         // KEEPER_A and KEEPER_B must be different operators (or one later swapped for a Chainlink adapter).
-        address keeperA = vm.envAddress("KEEPER_A");
-        address keeperB = vm.envAddress("KEEPER_B");
+        address keeperA = cfg.keeperA;
+        address keeperB = cfg.keeperB;
         require(keeperA != keeperB, "DeployPhreaking: keepers must differ");
         RolePriceSource primary = new RolePriceSource(admin);
         RolePriceSource secondary = new RolePriceSource(admin);
@@ -157,7 +212,7 @@ contract DeployPhreaking is Script {
         console.log("CoinGatchaBox:    ", address(cg));
 
         // ---- referral system ----------------------------------------------------------
-        uint256 maxSupply = _optionalEnvUint(vm, "REFERRAL_MAX_SUPPLY");
+        uint256 maxSupply = cfg.referralMaxSupply;
         if (maxSupply == 0) maxSupply = 10_000 ether; // default program exposure cap; overridable.
         ReferralToken referralToken = new ReferralToken(admin, maxSupply);
         console.log("ReferralToken:    ", address(referralToken));
@@ -241,7 +296,7 @@ contract DeployPhreaking is Script {
         // Native Ether (zero-address convention; OBS-128 H-1 donation-path support). Optional USD seed at
         // deploy time — both keepers must refresh it within the 1h freshness heartbeat.
         registry.registerToken(address(0), 18);
-        uint256 ethPriceSeed = _optionalEnvUint(vm, "ETH_PRICE_USD"); // whole-ETH USD at 1e8
+        uint256 ethPriceSeed = cfg.ethPriceSeed; // whole-ETH USD at 1e8
         if (ethPriceSeed != 0) {
             primary.setQuote(address(0), ethPriceSeed, 18);
             secondary.setQuote(address(0), ethPriceSeed, 18);

@@ -577,29 +577,34 @@ contract AttackSimTest is AttackSimBase {
 contract DeployScriptTest is Test {
     MockExecutor exec;
 
-    function _setEnv(string memory k, address v) internal {
-        vm.setEnv(k, vm.toString(v));
-    }
-
     function test_DeployScript_WiresExecutorOnAll17Boxes_AndHandsOffAdmin() public {
         address msig = address(0x11516);
         address guard = address(0x6AA);
         exec = new MockExecutor();
 
         // vm.startBroadcast() with no argument replays from Foundry's default sender (see Vm.sol docs),
-        // so ADMIN must be that address or the setup calls would lack DEFAULT_ADMIN_ROLE.
-        _setEnv("ADMIN", DEFAULT_SENDER);
-        _setEnv("MULTISIG", msig);
-        _setEnv("GUARDIAN", guard);
-        _setEnv("EXECUTOR", address(exec));
-        _setEnv("KEEPER_A", address(0x7EEDA1));
-        _setEnv("KEEPER_B", address(0x7EEDB2));
-        vm.setEnv("VAR_CAP_USD", "0");
-        vm.setEnv("TX_CAP_USD", "0");
-        vm.setEnv("WALLET_CAP_USD", "0");
+        // so admin must be that address or the setup calls would lack DEFAULT_ADMIN_ROLE.
+        // An explicit config is passed rather than vm.setEnv: process env is shared across concurrently
+        // executed test functions and leaked into the OBS-320 guard suite (OBS-621).
+        DeployPhreaking.DeployConfig memory cfg = DeployPhreaking.DeployConfig({
+            admin: DEFAULT_SENDER,
+            multisig: msig,
+            guardian: guard,
+            executor: address(exec),
+            keeperA: address(0x7EEDA1),
+            keeperB: address(0x7EEDB2),
+            varCap: 0,
+            txCap: 0,
+            walCap: 0,
+            ethPriceSeed: 0,
+            referralMaxSupply: 0
+        });
 
+        // Caps are unset, so this full-run scenario must emulate Sepolia (11155111):
+        // the OBS-320 chain-id guard hard-fails any non-Sepolia deploy with caps unset.
+        vm.chainId(11155111);
         vm.recordLogs();
-        new DeployPhreaking().run();
+        new DeployPhreaking().runWithConfig(cfg);
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         bytes32 executorChanged = keccak256("ExecutorChanged(address)");
