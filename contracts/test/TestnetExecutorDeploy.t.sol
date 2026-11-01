@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 
 import {DeployTestnetSettlingExecutor} from "../script/DeployTestnetSettlingExecutor.s.sol";
+import {DeployConfig} from "../script/Deploy.s.sol";
 import {TestnetSettlingExecutor} from "../testnet-settling-executor/src/TestnetSettlingExecutor.sol";
 import {MysteryBox} from "../src/MysteryBox.sol";
 import {MysteryBoxBase} from "../src/MysteryBoxBase.sol";
@@ -66,19 +67,26 @@ contract TestnetExecutorDeployTest is Test {
 
     function setUp() external {
         vm.chainId(LOCAL_CHAIN_ID);
-        _setEnv("ADMIN", admin);
-        _setEnv("MULTISIG", multisig);
-        _setEnv("GUARDIAN", guardian);
-        _setEnv("KEEPER_A", keeperA);
-        _setEnv("KEEPER_B", keeperB);
-        vm.setEnv("VAR_CAP_USD", "1000000000000000"); // 10,000,000 USD at 1e8
-        vm.setEnv("TX_CAP_USD", "1000000000000"); // 10,000 USD at 1e8
-        vm.setEnv("WALLET_CAP_USD", "1000000000000"); // 10,000 USD at 1e8
         token = new DryRunToken();
     }
 
-    function _setEnv(string memory key, address value) internal {
-        vm.setEnv(key, vm.toString(value));
+    /// @dev OBS-595: an explicit config replaces `vm.setEnv`. `vm.setEnv` mutates a process-global map that
+    ///      parallel forge-test threads share, so writing it here would race the production-entrypoint test in
+    ///      `AttackSim.t.sol`. The wrapper still forces its freshly deployed executor into this config.
+    function _config() internal view returns (DeployConfig memory) {
+        return DeployConfig({
+            admin: admin,
+            multisig: multisig,
+            guardian: guardian,
+            executor: address(0), // overridden by the wrapper with the executor it just deployed
+            keeperA: keeperA,
+            keeperB: keeperB,
+            varCapUsd: 1_000_000_000_000_000, // 10,000,000 USD at 1e8
+            txCapUsd: 1_000_000_000_000, // 10,000 USD at 1e8
+            walletCapUsd: 1_000_000_000_000, // 10,000 USD at 1e8
+            referralMaxSupply: 0,
+            ethPriceUsd: 0
+        });
     }
 
     function _findMysteryBoxAndExecutorWiring(Vm.Log[] memory logs)
@@ -100,7 +108,7 @@ contract TestnetExecutorDeployTest is Test {
     function test_DeployWiresExecutorOnAllBoxes_AndDepositLandsInExecutor() public {
         deployer = new DeployTestnetSettlingExecutor();
         vm.recordLogs();
-        exec = deployer.run();
+        exec = deployer.runWithConfig(_config());
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         assertEq(exec.owner(), admin, "executor owner must remain ADMIN");
@@ -149,6 +157,6 @@ contract TestnetExecutorDeployTest is Test {
         vm.chainId(MAINNET_CHAIN_ID);
         DeployTestnetSettlingExecutor guarded = new DeployTestnetSettlingExecutor();
         vm.expectRevert("DeployTestnetSettlingExecutor: testnet/local chains only");
-        guarded.run();
+        guarded.runWithConfig(_config());
     }
 }
