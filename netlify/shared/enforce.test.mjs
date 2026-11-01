@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validateBatch, validateEvent, truncateIp, redactLogs, stripQuery, hostOnly,
-  makeBotFilter, ENUMS_OUT,
+  makeBotFilter, ENUMS_OUT, FUNNEL_STEPS_OUT,
 } from './enforce.mjs';
 
 const ISO = new Date().toISOString();
@@ -170,6 +170,68 @@ test('validateBatch: stats feed the data-quality counters', () => {
   assert.equal(stats.accepted, 2);
   assert.equal(stats.rejected, 1);
   assert.ok(stats.droppedAttributes >= 3); // email extra + nope's page_path etc.
+});
+
+// OBS-496 — metric-dictionary v2.1 §4.4 funnel_step vocabulary enforcement.
+const FUNNEL_BASE = {
+  product: 'pff', event_name: 'funnel_step',
+  anonymous_id: '01234567-89ab-cdef-0123-456789abcdef', session_id: '01234567-89ab-cdef-0123-456789abcdff',
+  funnel_name: 'pff_purchase', chain_id: 11155111, build_version: 'v1', timestamp: ISO,
+};
+const funnel = (o) => ({ ...FUNNEL_BASE, ...o });
+
+test('§4.4: pff_purchase closed step list accepts only the dictionary pairs', () => {
+  const cfg = validateEvent(funnel({ step_index: 1, step_name: 'box_configured' }));
+  assert.ok(cfg.ok);
+  assert.equal(cfg.event.step_index, 1);
+  assert.equal(cfg.event.step_name, 'box_configured');
+
+  const conf = validateEvent(funnel({ step_index: 2, step_name: 'purchase_confirmed' }));
+  assert.ok(conf.ok);
+  assert.equal(conf.event.step_index, 2);
+  assert.equal(conf.event.step_name, 'purchase_confirmed');
+});
+
+test('§4.4: purchase_submitted under pff_purchase is rejected (not in the closed list)', () => {
+  const r = validateEvent(funnel({ step_index: 2, step_name: 'purchase_submitted' }));
+  assert.ok(!r.ok);
+  assert.match(r.reason, /unknown-step:pff_purchase\/purchase_submitted/);
+});
+
+test('§4.4: step_index must match the named step — purchase_confirmed ≠ 2 rejected', () => {
+  for (const idx of [1, 3]) {
+    const r = validateEvent(funnel({ step_index: idx, step_name: 'purchase_confirmed' }));
+    assert.ok(!r.ok);
+    assert.match(r.reason, /step-index-mismatch:purchase_confirmed/);
+  }
+});
+
+test('§4.4: step_index must match the named step — box_configured ≠ 1 rejected', () => {
+  for (const idx of [0, 2, 3]) {
+    const r = validateEvent(funnel({ step_index: idx, step_name: 'box_configured' }));
+    assert.ok(!r.ok);
+    assert.match(r.reason, /step-index-mismatch:box_configured/);
+  }
+});
+
+test('§4.4: validateBatch counts funnel_step vocabulary violations as rejected', () => {
+  const { accepted, stats } = validateBatch([
+    funnel({ step_index: 1, step_name: 'box_configured' }),
+    funnel({ step_index: 2, step_name: 'purchase_submitted' }),
+    funnel({ step_index: 3, step_name: 'purchase_confirmed' }),
+    funnel({ step_index: 2, step_name: 'box_configured' }),
+    funnel({ step_index: 2, step_name: 'purchase_confirmed' }),
+  ]);
+  assert.equal(accepted.length, 2);
+  assert.equal(stats.accepted, 2);
+  assert.equal(stats.rejected, 3);
+});
+
+test('FUNNEL_STEPS exposure matches metric-dictionary v2.1 §4.4', () => {
+  assert.deepEqual(FUNNEL_STEPS_OUT.pff_purchase, [
+    { step_index: 1, step_name: 'box_configured' },
+    { step_index: 2, step_name: 'purchase_confirmed' },
+  ]);
 });
 
 test('enums exposure matches the metric dictionary', () => {

@@ -46,6 +46,17 @@ const ENUMS = {
   utm_medium: ['organic_social', 'community', 'event', 'content', 'referral'],
 };
 
+// Metric-dictionary v2.1 §4.4 — closed per-funnel step vocabulary. A funnel_step
+// event's (step_index, step_name) pair must match an entry in its funnel's table;
+// a name outside the closed list, or an index that does not match the named step,
+// is rejected (OBS-496). Table is stateless: ordering across events is not enforced here.
+const FUNNEL_STEPS = {
+  pff_purchase: [
+    { step_index: 1, step_name: 'box_configured' },
+    { step_index: 2, step_name: 'purchase_confirmed' },
+  ],
+};
+
 const UTM_RE = /^[a-z0-9-]{1,60}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
@@ -146,6 +157,17 @@ export function validateEvent(ev) {
   const missingRequired = table[name].filter((k) => (name === 'error' && k === 'api_status') ? false : out[k] === undefined);
   if (missingRequired.length) return { ok: false, reason: `missing-required:${missingRequired.join(',')}` };
 
+  // §4.4 — funnel_step pairs must match the funnel's closed step table (OBS-496).
+  if (name === 'funnel_step') {
+    const steps = FUNNEL_STEPS[out.funnel_name];
+    if (!steps) return { ok: false, reason: `unknown-funnel:${out.funnel_name}` };
+    const step = steps.find((s) => s.step_name === out.step_name);
+    if (!step) return { ok: false, reason: `unknown-step:${out.funnel_name}/${out.step_name}` };
+    if (out.step_index !== step.step_index) {
+      return { ok: false, reason: `step-index-mismatch:${out.step_name}:${out.step_index}!=${step.step_index}` };
+    }
+  }
+
   return { ok: true, event: out, dropped };
 }
 
@@ -203,3 +225,4 @@ export function makeBotFilter({ store, maxPerMin = MAX_EVENTS_PER_MIN_PER_TRUNCA
 }
 
 export const ENUMS_OUT = ENUMS;
+export const FUNNEL_STEPS_OUT = FUNNEL_STEPS;
