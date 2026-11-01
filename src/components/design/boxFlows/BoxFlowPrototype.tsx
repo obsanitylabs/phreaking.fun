@@ -498,7 +498,7 @@ function SweepList({ total }: { total: number }) {
     <div className="mt-4">
       <div className="flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-widest text-white/40">
-          Entire wallet — all supported EVM chains
+          All supported EVM chains
         </p>
         <p className="text-[10px] text-terminal-orange">DEMO BALANCES</p>
       </div>

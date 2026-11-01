@@ -16,6 +16,10 @@ const result = readFileSync(join(root, "src/components/boxFlows/ResultScreen.tsx
 const panel = readFileSync(join(root, "src/components/boxFlows/WhiteVerbatimPanel.tsx"), "utf8");
 const app = readFileSync(join(root, "src/components/boxFlows/BoxFlowApp.tsx"), "utf8");
 const flow = readFileSync(join(root, "src/components/boxFlows/flowState.ts"), "utf8");
+const prototype = readFileSync(
+  join(root, "src/components/design/boxFlows/BoxFlowPrototype.tsx"),
+  "utf8",
+);
 
 const WHITE =
   "if you wish to generate a tax receipt or wish for further information, visit thegivingblock.com and donate directly through their platform. For anonymous fast donations without tax receipts, please proceed here";
@@ -59,11 +63,17 @@ for (const [file, text] of [
   ["catalog.ts", catalog],
   ["copy.ts", copy],
   ["HomeClient.tsx", home],
+  ["BoxFlowPrototype.tsx", prototype],
 ]) {
   for (const phrase of FORBIDDEN) {
-    assert.equal(text.includes(phrase), false, `${file} still publishes "${phrase}"`);
+    assert.equal(
+      text.toLowerCase().includes(phrase.toLowerCase()),
+      false,
+      `${file} still publishes "${phrase}"`,
+    );
   }
 }
+assert.ok(prototype.includes("All supported EVM chains"));
 assert.ok(catalog.includes(BLACK_ONE_LINE), "catalog.ts missing Black oneLine");
 assert.ok(catalog.includes(BLACK_DETAIL), "catalog.ts missing Black detail");
 assert.ok(catalog.includes(BLACK_ACK), "catalog.ts missing Black acknowledgement");
