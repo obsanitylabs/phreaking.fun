@@ -24,7 +24,7 @@ import {DualQuote} from "./PriceSources.sol";
 import {IBoxExecutor} from "../src/interfaces/IBoxExecutor.sol";
 import {ReferralToken} from "../src/ReferralToken.sol";
 import {ReferralRegistry} from "../src/ReferralRegistry.sol";
-import {DeployPhreaking} from "../script/Deploy.s.sol";
+import {DeployPhreaking, DeployConfig} from "../script/Deploy.s.sol";
 
 /// @dev Minimal ERC20 used to drive the box deposit pipeline. Public mappings keep it trivial to inspect.
 contract AttackToken {
@@ -577,10 +577,6 @@ contract AttackSimTest is AttackSimBase {
 contract DeployScriptTest is Test {
     MockExecutor exec;
 
-    function _setEnv(string memory k, address v) internal {
-        vm.setEnv(k, vm.toString(v));
-    }
-
     function test_DeployScript_WiresExecutorOnAll17Boxes_AndHandsOffAdmin() public {
         address msig = address(0x11516);
         address guard = address(0x6AA);
@@ -588,18 +584,54 @@ contract DeployScriptTest is Test {
 
         // vm.startBroadcast() with no argument replays from Foundry's default sender (see Vm.sol docs),
         // so ADMIN must be that address or the setup calls would lack DEFAULT_ADMIN_ROLE.
-        _setEnv("ADMIN", DEFAULT_SENDER);
-        _setEnv("MULTISIG", msig);
-        _setEnv("GUARDIAN", guard);
-        _setEnv("EXECUTOR", address(exec));
-        _setEnv("KEEPER_A", address(0x7EEDA1));
-        _setEnv("KEEPER_B", address(0x7EEDB2));
-        vm.setEnv("VAR_CAP_USD", "0");
-        vm.setEnv("TX_CAP_USD", "0");
-        vm.setEnv("WALLET_CAP_USD", "0");
+        // OBS-539: pass an explicit config (no vm.setEnv) so parallel test suites cannot race on the shared
+        // process environment.
+        DeployConfig memory cfg;
+        cfg.admin = DEFAULT_SENDER;
+        cfg.multisig = msig;
+        cfg.guardian = guard;
+        cfg.executor = address(exec);
+        cfg.keeperA = address(0x7EEDA1);
+        cfg.keeperB = address(0x7EEDB2);
+        cfg.varCapUsd = 0;
+        cfg.txCapUsd = 0;
+        cfg.walletCapUsd = 0;
+        cfg.referralMaxSupply = 0;
+        cfg.ethPriceUsd = 0;
 
         // Caps are unset, so this full-run scenario must emulate Sepolia (11155111):
         // the OBS-320 chain-id guard hard-fails any non-Sepolia deploy with caps unset.
+        vm.chainId(11155111);
+        vm.recordLogs();
+        new DeployPhreaking().runWithConfig(cfg);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        bytes32 executorChanged = keccak256("ExecutorChanged(address)");
+        uint256 wired = 0;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == executorChanged) {
+                wired++;
+                assertEq(address(uint160(uint256(logs[i].topics[1]))), address(exec), "wrong executor wired");
+            }
+        }
+        assertEq(wired, 17, "executor must be set on all 17 boxes");
+    }
+
+    /// @notice Smoke test for the PRODUCTION entrypoint `run()`, which maps env vars onto DeployConfig.
+    ///         OBS-539: this is now the only test in the fleet that writes these env keys; every other
+    ///         deploy-script test uses `runWithConfig`. With a single writer there is no cross-suite shared
+    ///         state to race, so the production env path stays covered without reintroducing the flake.
+    function test_DeployScript_ProdEnvEntrypoint_WiresExecutor() public {
+        exec = new MockExecutor();
+        vm.setEnv("ADMIN", vm.toString(DEFAULT_SENDER));
+        vm.setEnv("MULTISIG", vm.toString(address(0x11516)));
+        vm.setEnv("GUARDIAN", vm.toString(address(0x6AA)));
+        vm.setEnv("EXECUTOR", vm.toString(address(exec)));
+        vm.setEnv("KEEPER_A", vm.toString(address(0x7EEDA1)));
+        vm.setEnv("KEEPER_B", vm.toString(address(0x7EEDB2)));
+        vm.setEnv("VAR_CAP_USD", "0");
+        vm.setEnv("TX_CAP_USD", "0");
+        vm.setEnv("WALLET_CAP_USD", "0");
         vm.chainId(11155111);
         vm.recordLogs();
         new DeployPhreaking().run();
