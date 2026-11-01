@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const catalog = readFileSync(join(root, "src/components/design/boxFlows/catalog.ts"), "utf8");
 const copy = readFileSync(join(root, "src/components/boxFlows/copy.ts"), "utf8");
+const home = readFileSync(join(root, "src/app/HomeClient.tsx"), "utf8");
 const review = readFileSync(join(root, "src/components/boxFlows/reviewModel.ts"), "utf8");
 const result = readFileSync(join(root, "src/components/boxFlows/ResultScreen.tsx"), "utf8");
 const panel = readFileSync(join(root, "src/components/boxFlows/WhiteVerbatimPanel.tsx"), "utf8");
@@ -24,10 +25,23 @@ const RAINBOW_OUTCOMES =
   "Possible outcomes: any other box can fire — from a 1:1 token swap (Red) to Black.";
 const RAINBOW_SWEEP =
   "The deposit amount in that transaction can be lost in full and cannot be undone. Do not deposit assets you want to keep.";
+const BLACK_ONE_LINE =
+  "Deposit the full balance of one token into the black hole. Keep a Harold NFT as the receipt.";
+const BLACK_DETAIL =
+  "Rage quit. Your deposit of a single token — up to its full balance — goes to a one-time deposit address, valued in USD, and on to the dev black hole. You receive a Hide The Pain Harold NFT with the USD value printed in the corner. This is irreversible and zeroes the deposited token's balance.";
+const BLACK_LEGACY_CARD =
+  "Rage quit. Throw a token's full balance into a black hole and zero out that token's balance. Receive a minted Hide The Pain Harold NFT displaying the dollar value sent.";
+const BLACK_ACK =
+  "I understand this deposit is irreversible and will zero the deposited token's balance.";
 const FORBIDDEN = [
   "full wallet sweep",
   "sweeps the entire wallet",
   "covers your entire wallet",
+  "entire wallet",
+  "Every token in the connected wallet",
+  "zeroes the wallet's balances",
+  "zero my balances",
+  "zero out your balances",
 ];
 const RAINBOW_ACK = "I understand a random box will fire and I cannot choose it.";
 const BANNER = "Sepolia testnet demo — never send real funds.";
@@ -41,11 +55,19 @@ assert.ok(copy.includes(RAINBOW_OUTCOMES));
 assert.ok(copy.includes(RAINBOW_SWEEP));
 assert.ok(catalog.includes(RAINBOW_SWEEP));
 assert.ok(copy.includes(RAINBOW_ACK));
-for (const phrase of FORBIDDEN) {
-  assert.equal(copy.includes(phrase), false, `copy.ts still publishes "${phrase}"`);
-  assert.equal(catalog.includes(phrase), false, `catalog.ts still publishes "${phrase}"`);
+for (const [file, text] of [
+  ["catalog.ts", catalog],
+  ["copy.ts", copy],
+  ["HomeClient.tsx", home],
+]) {
+  for (const phrase of FORBIDDEN) {
+    assert.equal(text.includes(phrase), false, `${file} still publishes "${phrase}"`);
+  }
 }
-assert.equal(copy.includes("entire wallet"), false, "copy.ts still publishes entire wallet");
+assert.ok(catalog.includes(BLACK_ONE_LINE), "catalog.ts missing Black oneLine");
+assert.ok(catalog.includes(BLACK_DETAIL), "catalog.ts missing Black detail");
+assert.ok(catalog.includes(BLACK_ACK), "catalog.ts missing Black acknowledgement");
+assert.ok(home.includes(BLACK_LEGACY_CARD), "HomeClient.tsx missing Black card description");
 assert.ok(copy.includes(BANNER));
 assert.ok(catalog.includes(DIAMOND));
 assert.ok(catalog.includes('eyebrow: "DONATION COMPLETE"'));
