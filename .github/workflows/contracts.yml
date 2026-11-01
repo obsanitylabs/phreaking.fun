@@ -1,0 +1,52 @@
+# Foundry (contract) gate for phreaking.fun.
+#
+# This workflow lives at the REPOSITORY ROOT because GitHub Actions only discovers
+# workflows under the repo-root `.github/workflows/`. The previous location
+# (`contracts/.github/workflows/test.yml`) was one directory too deep and was never
+# discovered, so the contract suite had no CI gate (OBS-539).
+#
+# OBS-539: `forge test` runs under Foundry's DEFAULT parallelism. The deploy-script
+# suites were made deterministic there (the shared process-global `vm.setEnv` race in
+# `test/AttackSim.t.sol` / `test/DeployChainGuard.t.sol` is fixed), so CI exercises the
+# default parallel path on purpose rather than masking it with `--threads 1`.
+#
+# `forge fmt --check` is intentionally NOT run here: the contracts tree carries
+# pre-existing formatting debt (notably `contracts/src/**`, which is byte-identical to
+# the signed broadcast SHA and must not be reformatted). The test-harness sources are
+# fmt-clean; formatting debt is tracked separately from this gate.
+name: Contracts CI
+
+permissions: {}
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: contracts
+
+jobs:
+  check:
+    name: Foundry project
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Show Forge version
+        run: forge --version
+
+      - name: Run Forge build
+        run: forge build --sizes
+
+      - name: Run Forge tests (default parallelism)
+        run: forge test -vvv

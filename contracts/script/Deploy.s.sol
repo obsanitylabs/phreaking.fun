@@ -62,6 +62,24 @@ import {ReferralRegistry} from "../src/ReferralRegistry.sol";
 ///         sources and the pricer only DURING this broadcast; all five grants are revoked/renounced in it and
 ///         the renouncements are asserted on-chain below. Ongoing quotes require the two named keepers
 ///         (KEEPER_A / KEEPER_B keys — custody recorded by name only, never key material).
+///
+///         OBS-539: production reads these values from the process environment in `run()`. Tests MUST use
+///         `runWithConfig` with an explicit struct instead of `vm.setEnv`, because `vm.setEnv` mutates a
+///         process-global map shared across parallel forge-test threads (cross-suite races).
+struct DeployConfig {
+    address admin;             // signer of this broadcast == deployer EOA.
+    address multisig;          // final DEFAULT_ADMIN_ROLE holder (2-of-3).
+    address guardian;          // on-call emergency pause role.
+    address executor;          // trusted off-chain settlement actor (see NatSpec above).
+    address keeperA;           // oracle quote keeper for price source A.
+    address keeperB;           // oracle quote keeper for price source B.
+    uint256 varCapUsd;         // total-value-at-risk cap (USD 1e8); 0 = unset (unlimited) — see OBS-320 guard.
+    uint256 txCapUsd;          // per-transaction cap (USD 1e8); 0 = unset.
+    uint256 walletCapUsd;      // per-wallet cap (USD 1e8); 0 = unset.
+    uint256 referralMaxSupply; // ReferralToken exposure cap; 0 = default (10_000 ether).
+    uint256 ethPriceUsd;       // native ETH USD seed at 1e8; 0 = leave unseeded (keepers quote before launch).
+}
+
 contract DeployPhreaking is Script {
     /// @notice Known Polygon Sepolia tokens from src/constants/currencies.ts — registered on-chain here so the
     ///         registry has correct decimals before pool configuration. Pool membership itself is an admin
@@ -72,19 +90,44 @@ contract DeployPhreaking is Script {
 
     bytes32 constant DEFAULT_ADMIN_ROLE = 0x0000000000000000000000000000000000000000000000000000000000000000;
 
+    /// @notice Production entrypoint. Reads every parameter from the process environment and deploys.
     function run() external {
         Vm vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-        address admin    = vm.envAddress("ADMIN");   // signer of this broadcast == deployer EOA.
-        address multisig = vm.envAddress("MULTISIG"); // final DEFAULT_ADMIN_ROLE holder (2-of-3).
-        address guardian = vm.envAddress("GUARDIAN"); // on-call emergency pause role.
-        address executor = vm.envAddress("EXECUTOR"); // trusted off-chain settlement actor (see NatSpec above).
+        _deploy(DeployConfig({
+            admin: vm.envAddress("ADMIN"),
+            multisig: vm.envAddress("MULTISIG"),
+            guardian: vm.envAddress("GUARDIAN"),
+            executor: vm.envAddress("EXECUTOR"),
+            keeperA: vm.envAddress("KEEPER_A"),
+            keeperB: vm.envAddress("KEEPER_B"),
+            varCapUsd: _optionalEnvUint(vm, "VAR_CAP_USD"),
+            txCapUsd: _optionalEnvUint(vm, "TX_CAP_USD"),
+            walletCapUsd: _optionalEnvUint(vm, "WALLET_CAP_USD"),
+            referralMaxSupply: _optionalEnvUint(vm, "REFERRAL_MAX_SUPPLY"),
+            ethPriceUsd: _optionalEnvUint(vm, "ETH_PRICE_USD")
+        }));
+    }
+
+    /// @notice Explicit-parameter entrypoint for the deploy-script tests (OBS-539). Runs the exact same deploy
+    ///         logic as `run()` without touching the process environment, so parallel suites cannot race on a
+    ///         shared `vm.setEnv` map. Not used by `forge script` (which invokes `run()`).
+    function runWithConfig(DeployConfig calldata config) external {
+        _deploy(config);
+    }
+
+    /// @dev Shared deploy body. Production `run()` and the test-only `runWithConfig` both funnel through here.
+    function _deploy(DeployConfig memory config) internal {
+        address admin    = config.admin;    // signer of this broadcast == deployer EOA.
+        address multisig = config.multisig; // final DEFAULT_ADMIN_ROLE holder (2-of-3).
+        address guardian = config.guardian; // on-call emergency pause role.
+        address executor = config.executor; // trusted off-chain settlement actor (see NatSpec above).
         require(admin != multisig, "DeployPhreaking: ADMIN and MULTISIG must differ");
         require(executor != address(0), "DeployPhreaking: EXECUTOR must be set");
         require(executor != admin && executor != multisig && executor != guardian, "DeployPhreaking: EXECUTOR must be a distinct contract");
 
-        uint256 varCap = _optionalEnvUint(vm, "VAR_CAP_USD");
-        uint256 txCap  = _optionalEnvUint(vm, "TX_CAP_USD");
-        uint256 walCap = _optionalEnvUint(vm, "WALLET_CAP_USD");
+        uint256 varCap = config.varCapUsd;
+        uint256 txCap  = config.txCapUsd;
+        uint256 walCap = config.walletCapUsd;
 
         // ---- OBS-320 chain-id guard: never deploy an unbounded fleet off-Sepolia -------------------
         // A cap of 0 means UNLIMITED on-chain (MysteryBoxBase._checkDepositCaps skips zero caps), so a
@@ -119,8 +162,8 @@ contract DeployPhreaking is Script {
 
         // Two sources, two keepers. A quote is accepted only when both agree within 1%.
         // KEEPER_A and KEEPER_B must be different operators (or one later swapped for a Chainlink adapter).
-        address keeperA = vm.envAddress("KEEPER_A");
-        address keeperB = vm.envAddress("KEEPER_B");
+        address keeperA = config.keeperA;
+        address keeperB = config.keeperB;
         require(keeperA != keeperB, "DeployPhreaking: keepers must differ");
         RolePriceSource primary = new RolePriceSource(admin);
         RolePriceSource secondary = new RolePriceSource(admin);
@@ -173,7 +216,7 @@ contract DeployPhreaking is Script {
         console.log("CoinGatchaBox:    ", address(cg));
 
         // ---- referral system ----------------------------------------------------------
-        uint256 maxSupply = _optionalEnvUint(vm, "REFERRAL_MAX_SUPPLY");
+        uint256 maxSupply = config.referralMaxSupply;
         if (maxSupply == 0) maxSupply = 10_000 ether; // default program exposure cap; overridable.
         ReferralToken referralToken = new ReferralToken(admin, maxSupply);
         console.log("ReferralToken:    ", address(referralToken));
@@ -257,7 +300,7 @@ contract DeployPhreaking is Script {
         // Native Ether (zero-address convention; OBS-128 H-1 donation-path support). Optional USD seed at
         // deploy time — both keepers must refresh it within the 1h freshness heartbeat.
         registry.registerToken(address(0), 18);
-        uint256 ethPriceSeed = _optionalEnvUint(vm, "ETH_PRICE_USD"); // whole-ETH USD at 1e8
+        uint256 ethPriceSeed = config.ethPriceUsd; // whole-ETH USD at 1e8
         if (ethPriceSeed != 0) {
             primary.setQuote(address(0), ethPriceSeed, 18);
             secondary.setQuote(address(0), ethPriceSeed, 18);
