@@ -38,6 +38,11 @@ import {
 } from "./catalog";
 import { BoxDefinition, BoxToggle, DemoResult } from "./types";
 import { SepoliaBanner } from "@/components/boxFlows/SepoliaBanner";
+import {
+  FINALITY_KEEP_OPEN,
+  FINALITY_PREVIEW_ONLY,
+  FINALITY_SIMULATED_TIMELINE,
+} from "@/components/boxFlows/copy";
 
 type Step = "configure" | "review" | "sign" | "finality" | "result" | "error";
 
@@ -1422,11 +1427,14 @@ export default function BoxFlowPrototype() {
         {box.name} · elapsed {String(Math.floor(elapsed / 60)).padStart(2, "0")}:
         {String(elapsed % 60).padStart(2, "0")}
       </p>
+      <p className="mt-4 text-[10px] uppercase tracking-widest text-terminal-orange">
+        {FINALITY_SIMULATED_TIMELINE}
+      </p>
 
       <ol
-        className="mt-5 space-y-2"
+        className="mt-2 space-y-2"
         aria-live="polite"
-        aria-label="Transaction stages"
+        aria-label="Simulated preview stages"
       >
         {stages.map((stage, index) => {
           const done = index < stageIndex;
@@ -1459,9 +1467,15 @@ export default function BoxFlowPrototype() {
           );
         })}
       </ol>
+      <p
+        className="mt-3 text-[10px] uppercase tracking-widest text-white/40"
+        data-testid="finality-preview-only"
+      >
+        {FINALITY_PREVIEW_ONLY}
+      </p>
 
       <p className="mt-5 border-l-2 border-terminal-orange pl-3 text-[11px] text-white/60">
-        Keep this tab open. You can hide this panel; the transaction will continue.
+        {FINALITY_KEEP_OPEN}
       </p>
     </div>
   );
@@ -1762,8 +1776,13 @@ export default function BoxFlowPrototype() {
           className="fixed bottom-4 left-1/2 z-40 flex w-[min(92vw,640px)] -translate-x-1/2 items-center justify-between gap-3 border px-4 py-3 text-left text-[11px] focus:outline-none focus:ring-2 focus:ring-white"
           style={{ borderColor: accent, backgroundColor: "#000" }}
         >
-          <span className="text-white">
-            {selected.name} executing — {STAGE_LABELS[stages[stageIndex]] ?? stages[stageIndex]}
+          <span className="flex flex-col gap-1 text-white">
+            <span>
+              {selected.name} executing — {STAGE_LABELS[stages[stageIndex]] ?? stages[stageIndex]}
+            </span>
+            <span className="text-[10px] uppercase tracking-widest text-white/40">
+              {FINALITY_PREVIEW_ONLY}
+            </span>
           </span>
           <span className="text-terminal-green">SHOW</span>
         </button>

@@ -29,6 +29,7 @@ import {
   BLUE_OFFER_REFRESHED,
   CAP_REACHED_COPY,
   FINALITY_KEEP_OPEN,
+  FINALITY_PREVIEW_ONLY,
   GREEN_INELIGIBLE_COPY,
   PAUSED_COPY,
   QUOTE_EXPIRED_COPY,
@@ -507,8 +508,9 @@ export function BoxFlowApp() {
   );
   const stageCount = stages.length;
 
-  // Spec §6.6 — the overlay reports observed progress. Advance one stage at a
-  // time so the production flow tracks the prototype instead of freezing on
+  // Spec §6.6 — the production flow has no broadcast path, so this is a
+  // simulated preview timeline, not observed chain progress. Advance one stage
+  // at a time so the preview tracks the prototype instead of freezing on
   // SUBMITTED. Runs under reduced motion too: the stage list is content, not
   // the decorative scanline/pulse.
   useEffect(() => {
@@ -736,9 +738,15 @@ export function BoxFlowApp() {
                 />
               )}
               {state.step === "finality" && state.finalityHidden && (
-                <p className="text-[12px] text-white/60" data-testid="finality-collapsed-note">
-                  {FINALITY_KEEP_OPEN}
-                </p>
+                <div data-testid="finality-collapsed-note">
+                  <p className="text-[12px] text-white/60">{FINALITY_KEEP_OPEN}</p>
+                  <p
+                    className="mt-2 text-[10px] uppercase tracking-widest text-white/40"
+                    data-testid="finality-collapsed-preview-only"
+                  >
+                    {FINALITY_PREVIEW_ONLY}
+                  </p>
+                </div>
               )}
               {state.step === "result" && (
                 <ResultScreen box={selected} depositUsd={quote?.depositUsd} quote={quote} />
@@ -776,9 +784,17 @@ export function BoxFlowApp() {
               data-testid="finality-bar"
               className="fixed inset-x-0 bottom-0 z-[60] flex items-center justify-between gap-3 border-t border-white/20 bg-black px-4 py-3"
             >
-              <p className="text-[11px] uppercase tracking-widest text-white">
-                {selected.name} executing — {stages[state.stageIndex] ?? "SUBMITTED"}
-              </p>
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-widest text-white">
+                  {selected.name} executing — {stages[state.stageIndex] ?? "SUBMITTED"}
+                </p>
+                <p
+                  className="mt-1 text-[10px] uppercase tracking-widest text-white/40"
+                  data-testid="finality-bar-preview-only"
+                >
+                  {FINALITY_PREVIEW_ONLY}
+                </p>
+              </div>
               <button
                 type="button"
                 data-autofocus="true"

@@ -69,6 +69,17 @@ export const CONFIRM_FINE_PRINT =
 export const FINALITY_KEEP_OPEN =
   "Keep this tab open. You can hide this panel; the transaction will continue.";
 
+/**
+ * Spec §6.6. The production flow has no broadcast path, so the finality stage
+ * list is a simulated preview. This qualifier must stay adjacent to the stage
+ * list and in every collapsed/bar rendering so no state claims observed chain
+ * progress.
+ */
+export const FINALITY_PREVIEW_ONLY = "Preview only. No transaction was submitted.";
+
+export const FINALITY_SIMULATED_TIMELINE =
+  "Simulated preview timeline — not observed chain progress.";
+
 export const TAKING_LONGER = "Taking longer than usual";
 
 export const REVERTED_COPY = "Transaction reverted. Your deposit was not taken.";
