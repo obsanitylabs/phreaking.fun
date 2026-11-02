@@ -14,6 +14,12 @@
 # pre-existing formatting debt (notably `contracts/src/**`, which is byte-identical to
 # the signed broadcast SHA and must not be reformatted). The test-harness sources are
 # fmt-clean; formatting debt is tracked separately from this gate.
+#
+# OBS-684: the settlement contract (`contracts/testnet-settling-executor/`) is a
+# separate Foundry project with its own `foundry.toml` and relative libs. The root
+# `forge test` compiles its source but never executes its 11 tests, so the nested
+# suite runs as its own step from inside that directory. Both steps use default
+# parallelism; neither may be skipped or serialized.
 name: Contracts CI
 
 permissions: {}
@@ -49,4 +55,8 @@ jobs:
         run: forge build --sizes
 
       - name: Run Forge tests (default parallelism)
+        run: forge test -vvv
+
+      - name: Run settlement executor Forge tests (default parallelism)
+        working-directory: contracts/testnet-settling-executor
         run: forge test -vvv
