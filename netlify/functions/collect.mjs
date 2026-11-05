@@ -9,6 +9,13 @@
 import { getStore } from '@netlify/blobs';
 import { validateBatch, truncateIp, redactLogs } from '../shared/enforce.mjs';
 import { makeBotFilter } from '../shared/enforce.mjs';
+import {
+  MODERATION_BLOCKLIST_KEY,
+  MODERATION_STORE_NAME,
+  filterBlockedEvents,
+  isIpBlocked,
+  normalizeBlocklist,
+} from '../shared/moderation.mjs';
 
 const isBot = makeBotFilter(); // in-process sliding window (per warm instance; demo volume)
 const JSON_HEADERS = { 'content-type': 'application/json' };
@@ -17,6 +24,22 @@ const MAX_BATCH_EVENTS = 50; // cheap-DoS cap: events past the cap are rejected+
 
 function dayKey(d = new Date()) { return `events/${d.toISOString().slice(0, 10)}`; }
 function qualityKey(d = new Date()) { return `quality/${d.toISOString().slice(0, 10)}`; }
+
+// OBS-126 — moderation blocklist. Anonymous-id and IP-prefix entries are enforced
+// here, before validation and persistence. Wallet entries are not relevant to the
+// collector (events never contain wallet addresses) and are never stored here.
+// A moderation-store read failure fails open for analytics: we do not drop
+// legitimate traffic because the admin store was temporarily unavailable.
+async function loadBlocklistEntries() {
+  try {
+    const store = getStore(MODERATION_STORE_NAME);
+    const raw = await store.get(MODERATION_BLOCKLIST_KEY);
+    if (!raw) return [];
+    return normalizeBlocklist(JSON.parse(raw)).entries;
+  } catch {
+    return [];
+  }
+}
 
 export default async (req) => {
   if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'not-found' }), { status: 404, headers: JSON_HEADERS });
@@ -42,11 +65,24 @@ export default async (req) => {
 
   if (bot.bot) { await bumpQuality({ botFiltered: 1 }); return new Response(JSON.stringify({ ok: true, filtered: true }), { status: 200, headers: { ...JSON_HEADERS, ...NO_STORE } }); }
 
-  const overflow = Array.isArray(events) ? Math.max(0, events.length - MAX_BATCH_EVENTS) : 0;
-  const { accepted, stats } = validateBatch(overflow ? events.slice(0, MAX_BATCH_EVENTS) : events);
+  const entries = await loadBlocklistEntries();
+  if (isIpBlocked(ip, entries)) {
+    const blockedCount = Array.isArray(events) ? events.length : 0;
+    await bumpQuality({ blocked: blockedCount || 1 });
+    return new Response(JSON.stringify({ ok: true, filtered: true, blocked: blockedCount }), { status: 200, headers: { ...JSON_HEADERS, ...NO_STORE } });
+  }
+
+  const filtered = filterBlockedEvents(events, entries);
+  const overflow = Array.isArray(filtered.kept) ? Math.max(0, filtered.kept.length - MAX_BATCH_EVENTS) : 0;
+  const { accepted, stats } = validateBatch(overflow ? filtered.kept.slice(0, MAX_BATCH_EVENTS) : filtered.kept);
   if (overflow) stats.rejected += overflow;
-  await bumpQuality({ accepted: stats.accepted, rejected: stats.rejected, droppedAttributes: stats.droppedAttributes });
-  if (accepted.length === 0) return new Response(JSON.stringify({ ok: true, accepted: 0 }), { status: 200, headers: { ...JSON_HEADERS, ...NO_STORE } });
+  await bumpQuality({
+    accepted: stats.accepted,
+    rejected: stats.rejected,
+    droppedAttributes: stats.droppedAttributes,
+    ...(filtered.blocked ? { blocked: filtered.blocked } : {}),
+  });
+  if (accepted.length === 0) return new Response(JSON.stringify({ ok: true, accepted: 0, blocked: filtered.blocked || 0 }), { status: 200, headers: { ...JSON_HEADERS, ...NO_STORE } });
 
   // R1-clean events only are persisted — daily partition, append.
   const ek = `events/${today}`;
