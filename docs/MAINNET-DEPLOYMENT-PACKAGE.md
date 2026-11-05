@@ -207,3 +207,86 @@ CTO's per-contract fuzz re-run).
 **Dependencies:** CFO cap amounts (contract-level enforcement needs values); multisig setup (§4) must
 exist before deployment so guard roles can be assigned to it; CEO sign-off on this rebuild scope is
 requested as part of §3 approval.
+
+## 9. Live Sepolia fleet (OBS-321) — post-deployment configuration and gaps
+
+The canonical Sepolia deployment is the **OBS-321 broadcast** (`a4e7642`, chain `11155111`, 169 txs,
+nonces 15–183). Addresses, tx hashes and the incident record live in the
+[OBS-321 broadcast reconciliation](/OBS/issues/OBS-321#document-broadcast-reconciliation). The three gaps
+found after the broadcast by QA ([OBS-612](/OBS/issues/OBS-612)) and tracked in [OBS-621](/OBS/issues/OBS-621)
+are recorded here so the next deployment is deposit-ready out of the box. This section is the authoritative
+addition; §2 and §8 describe the pre-build plan and are superseded for the live fleet.
+
+### 9.1 Pool-membership configuration step (required — the live fleet is NOT deposit-ready)
+
+`script/Deploy.s.sol` registers tokens (`registerToken`) but **never calls `setPoolMembership`**, and the
+NatSpec deliberately leaves pool membership as a "post-deploy admin decision". Result on the live fleet:
+`BoxTokenRegistry.canUse(token, boxType)` is `false` for **every** pair (verified read-only 2026-11-01),
+so every `deposit` reverts. This is a deployment-**process** gap, not a contract bug — no `contracts/src/**`
+change is needed.
+
+**Exact call set** — `ADMIN` = the registry `DEFAULT_ADMIN_ROLE` holder:
+
+- Registry: `BoxTokenRegistry` `0x43Ff92ce3eC51c96FFD4031fc85f63ea2b6BEA1D`
+- Registered tokens: native `address(0)` (18 decimals), USDC.e `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` (6), WETH `0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9` (18), LINK `0x779877A7B0D9E8603169DdbD7836e478b4624789` (18)
+- `setPoolMembership(BoxType box, address token, bool added)` is **per-pair only** — there is no batch
+  function. For each of the 17 `BoxType` values and each registered token: `setPoolMembership(box, token, true)`.
+  That is 17 × 4 = 68 calls. `BoxType` order: `RED, BLUE, GREEN, MYSTERY, WHITE, ORANGE, YELLOW, PINK, PURPLE,
+  RAINBOW, BLACK, CHECKERED, SILVER, GOLD, DIAMOND, RUSSIAN_FLAG, COINGATCHA` (`0..16`).
+- Verify afterwards: `canUse(token, boxType) == true` for every enabled pair and `info(token).active == true`;
+  confirm nothing else in the fleet changed.
+
+Sepolia test matrix — all registered tokens enabled on all 17 boxes (testnet config; per-box mainnet pools
+remain a design decision from the box specs). Ready-to-run helpers:
+
+- `contracts/script/ConfigurePools.s.sol` — Forge broadcast; issues the 68 calls and asserts all 68
+  `canUse` pairs afterwards. Dry-run against Sepolia as the MULTISIG admin (no broadcast) produced
+  68 transactions to the registry (selector `0xc4178c2b`), estimated total gas **5,034,364**, and
+  verified all 68 pairs `canUse=true`. Re-run with `--with-gas-price 21 --priority-gas-price 1`.
+- `scripts/configure-pools-sepolia.sh` — cast loop; same 68 calls, reads the admin key from
+  `$ADMIN_KEY`/env only (never embedded), and re-verifies the matrix.
+
+**Who can run it on the live fleet:** `setPoolMembership` is `onlyRole(DEFAULT_ADMIN_ROLE)`. The deployer EOA
+`0x3539327E34a8262ec8b6F197B8F769660d0948fc` **renounced** `DEFAULT_ADMIN_ROLE` during the broadcast
+(`RoleRevoked`, registry block 12040162); the sole holder is the Sepolia `MULTISIG` EOA
+`0xCD63Bde25B9727bAA0A08bb6219a551262Ac8968` (derivation `m/44'/60'/0'/0/0`; on Sepolia this "2-of-3
+multisig" is currently a **single EOA**, disclosed). The role-keys mnemonic is a managed secret still pending
+acceptance; until it is bound, the pool config cannot be executed by the engineering agent. **The next
+deployment should run this step BEFORE the admin handoff**, while the deployer still holds
+`DEFAULT_ADMIN_ROLE`, so the fleet ships deposit-ready.
+
+### 9.2 Sepolia executor is custody-by-design — never deploy it to mainnet
+
+`TestnetSettlingExecutor` `0xc584a46b911EAfbBdB7fe6b59446a06509380287` is a **testnet-only** settling actor
+that holds every pulled ERC-20 and every native deposit until the owner sweeps it. `owner` is the deployer EOA
+`0x3539327E34a8262ec8b6F197B8F769660d0948fc` with **no rotation path**; `sweep()` is the only privileged
+surface; `execute()` never pays the user. That custody model is acceptable for Sepolia value only and is
+**explicitly excluded from mainnet**: the mainnet executor must instead pay the user within the atomic
+deposit, hold no balance between transactions, and expose no unaccounted admin fund-movement path (or a
+disclosed, time-locked one).
+
+### 9.3 Forge gas-limit finding (from the OBS-321 broadcast)
+
+The local estimate for the executor `CREATE` was **~7× low** versus the fee actually required on Sepolia. In
+this forge version (`forge 1.8.6`), `--gas-price` does **not** lower the effective fee while
+`--with-gas-price` does. Note both before any re-deploy; the working broadcast command used
+`--with-gas-price 21 --priority-gas-price 1 --gas-estimate-multiplier 800 --disable-block-gas-limit
+--disable-code-size-limit --slow`.
+
+### 9.4 Caps in force until the external audit (G5) clears — explicit statement
+
+The Sepolia caps actually in force on the OBS-321 fleet (CFO [OBS-288](/OBS/issues/OBS-288); parity verified
+on-chain) are:
+
+```
+VAR_CAP_USD=10000000000     # $100 total value-at-risk, PER BOX CONTRACT (fleet aggregate = 17 x this)
+TX_CAP_USD=2000000000       # $20 per transaction
+WALLET_CAP_USD=5000000000   # $50 per wallet
+ETH_PRICE_USD=300000000000  # $3,000 seed (keepers refresh within 1h)
+```
+
+Caps are stored **per box contract**, so the fleet-wide value-at-risk is `17 × VAR_CAP_USD`. On-chain a cap of
+`0` means **unlimited** (`MysteryBoxBase._checkDepositCaps` skips zero caps) — **never pass `0` for a cap on a
+real deployment.** The caps remain in force, unchanged, until the independent external audit (G5) reports
+**zero open critical/high findings**; no cap increase is authorized before that gate passes. Mainnet remains
+**CLOSED** until the board schedules it.
