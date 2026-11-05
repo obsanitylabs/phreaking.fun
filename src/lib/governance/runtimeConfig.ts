@@ -45,11 +45,14 @@ async function readFromRuntimeStore(): Promise<RawGovernanceConfig | null> {
     try {
       const specifier = "@netlify/blobs";
       const mod = (await import(/* webpackIgnore: true */ specifier)) as unknown as {
-        getStore: (opts: { name: string; context?: string }) => {
+        getStore: (name: string) => {
           get: (key: string) => Promise<string | null>;
         };
       };
-      const store = mod.getStore({ name: GOVERNANCE_STORE_NAME, context });
+      // Netlify's runtime resolves the Blobs context from the environment; do
+      // not pass the raw NETLIFY_BLOBS_CONTEXT string as an option (it is not a
+      // valid ClientOptions field and the read hangs instead of failing fast).
+      const store = mod.getStore(GOVERNANCE_STORE_NAME);
       const text = await store.get(GOVERNANCE_STORE_KEY);
       if (text) return JSON.parse(text) as RawGovernanceConfig;
     } catch {

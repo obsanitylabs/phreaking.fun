@@ -36,9 +36,11 @@ async function getBlobsStore(): Promise<BlobsStore | null> {
   try {
     const specifier = "@netlify/blobs";
     const mod = (await import(/* webpackIgnore: true */ specifier)) as unknown as {
-      getStore: (opts: { name: string; context?: string }) => BlobsStore;
+      getStore: (name: string) => BlobsStore;
     };
-    return mod.getStore({ name: AUDIT_STORE_NAME, context });
+    // Netlify's runtime resolves the Blobs context from the environment; do
+    // not pass the raw NETLIFY_BLOBS_CONTEXT string as an option.
+    return mod.getStore(AUDIT_STORE_NAME);
   } catch {
     return null;
   }
