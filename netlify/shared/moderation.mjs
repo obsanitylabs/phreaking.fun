@@ -90,7 +90,15 @@ export function normalizeBlocklist(raw) {
     seen.add(n.id);
     out.push(n);
   }
-  return { updatedAt: typeof raw?.updatedAt === 'string' ? raw.updatedAt : null, entries: out };
+  // `version`/`writeId` are the OBS-858 optimistic-concurrency fields: version
+  // monotonically increases per blocklist write; writeId identifies the exact
+  // committed document so a clobbered read-modify-write is detected on re-read.
+  return {
+    updatedAt: typeof raw?.updatedAt === 'string' ? raw.updatedAt : null,
+    version: Number.isSafeInteger(raw?.version) && raw.version >= 0 ? raw.version : 0,
+    writeId: typeof raw?.writeId === 'string' && raw.writeId ? raw.writeId : null,
+    entries: out,
+  };
 }
 
 function ipv4Blocked(truncatedIp, prefix) {
@@ -156,7 +164,7 @@ export function addBlocklistEntry(raw, entry, now = new Date().toISOString()) {
     (e) => !(e.kind === n.kind && e.value === n.value),
   );
   without.push({ ...n, createdAt: now });
-  return { doc: { updatedAt: now, entries: without }, changed: true };
+  return { doc: { ...doc, updatedAt: now, version: (doc.version ?? 0) + 1, entries: without }, changed: true };
 }
 
 /** Remove an entry by id or by kind+value. Returns a new normalized document. */
@@ -171,5 +179,6 @@ export function removeBlocklistEntry(raw, { id, kind, value }, now = new Date().
     return !(e.kind === k && e.value === v);
   });
   const changed = entries.length !== before;
-  return { doc: changed ? { updatedAt: now, entries } : doc, changed };
+  // OBS-858: bump version so every commit is distinguishable (see moderationStore.mjs).
+  return { doc: changed ? { ...doc, updatedAt: now, version: (doc.version ?? 0) + 1, entries } : doc, changed };
 }

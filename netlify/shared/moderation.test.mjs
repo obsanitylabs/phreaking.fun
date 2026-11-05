@@ -76,3 +76,21 @@ test('removeBlocklistEntry: removes by id or kind+value', () => {
   assert.equal(removeBlocklistEntry(doc, { id: doc.entries[0].id }).changed, true);
   assert.equal(removeBlocklistEntry(doc, { kind: 'anonymous_id', value: 'x' }).changed, false);
 });
+
+test('OBS-858: version bumps per write; normalizeBlocklist preserves version/writeId', () => {
+  const first = addBlocklistEntry(null, { kind: 'wallet', value: WALLET });
+  assert.equal(first.doc.version, 1);
+  const second = addBlocklistEntry(first.doc, { kind: 'anonymous_id', value: ID });
+  assert.equal(second.doc.version, 2);
+  const removed = removeBlocklistEntry(second.doc, { kind: 'wallet', value: WALLET });
+  assert.equal(removed.doc.version, 3);
+  assert.equal(removed.doc.entries.length, 1);
+  // round-trip through storage keeps the concurrency fields
+  const round = normalizeBlocklist(JSON.parse(JSON.stringify(removed.doc)));
+  assert.equal(round.version, 3);
+  assert.equal(round.writeId, removed.doc.writeId);
+  // absent/invalid values fall back safely
+  assert.equal(normalizeBlocklist({ entries: [], version: 'x' }).version, 0);
+  assert.equal(normalizeBlocklist(null).version, 0);
+  assert.equal(normalizeBlocklist(null).writeId, null);
+});

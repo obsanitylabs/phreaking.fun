@@ -15,16 +15,16 @@
 import { getStore } from '@netlify/blobs';
 import { timingSafeEqual } from 'node:crypto';
 import {
-  MODERATION_BLOCKLIST_KEY,
   MODERATION_STORE_NAME,
   addBlocklistEntry,
-  normalizeBlocklist,
   removeBlocklistEntry,
 } from '../shared/moderation.mjs';
+import { readBlocklist, withBlocklistRetry } from '../shared/moderationStore.mjs';
 
 const CORS = {};
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...CORS };
 const notFound = () => new Response(JSON.stringify({ error: 'not-found' }), { status: 404, headers: JSON_HEADERS });
+const jsonError = (status, body) => new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 
 function tokenOk(provided, expected) {
   if (!expected || !provided) return false;
@@ -38,10 +38,8 @@ function bearer(req) {
   return h.startsWith('Bearer ') ? h.slice(7).trim() : '';
 }
 
-async function readBlocklist(store) {
-  const raw = await store.get(MODERATION_BLOCKLIST_KEY);
-  return normalizeBlocklist(raw ? JSON.parse(raw) : null);
-}
+// readBlocklist moved to netlify/shared/moderationStore.mjs (OBS-858) so the
+// collector-side and retry guard share one normalize+parse path.
 
 async function readAudit(store, limit = 50) {
   const { blobs } = await store.list({ prefix: 'audit/' });
@@ -80,37 +78,31 @@ export default async (req) => {
 
   const action = body?.action;
   const now = new Date().toISOString();
-  const current = await readBlocklist(store);
-  let result;
-  let auditAction;
 
-  if (action === 'ban') {
-    const { doc, changed } = addBlocklistEntry(
-      current,
-      { kind: body?.kind, value: body?.value, reason: body?.reason },
-      now,
-    );
-    if (!changed) {
-      return new Response(JSON.stringify({ error: 'invalid-entry' }), { status: 400, headers: JSON_HEADERS });
+  // OBS-858 — the ban/unban read-modify-write is guarded by withBlocklistRetry:
+  // each commit is stamped with a fresh writeId and read back; a writeId mismatch
+  // means a concurrent admin write landed, and the mutation is replayed against
+  // the latest committed state (bounded) so simultaneous bans/unbans cannot clobber.
+  const apply = (current) => {
+    if (action === 'ban') {
+      const { doc, changed } = addBlocklistEntry(current, { kind: body?.kind, value: body?.value, reason: body?.reason }, now);
+      if (!changed) return { error: { status: 400, body: { error: 'invalid-entry' } } };
+      return { doc };
     }
-    result = doc;
-    auditAction = 'BAN';
-  } else if (action === 'unban') {
-    const { doc, changed } = removeBlocklistEntry(
-      current,
-      { id: body?.id, kind: body?.kind, value: body?.value },
-      now,
-    );
-    if (!changed) {
-      return new Response(JSON.stringify({ error: 'not-found-entry' }), { status: 404, headers: JSON_HEADERS });
+    if (action === 'unban') {
+      const { doc, changed } = removeBlocklistEntry(current, { id: body?.id, kind: body?.kind, value: body?.value }, now);
+      if (!changed) return { error: { status: 404, body: { error: 'not-found-entry' } } };
+      return { doc };
     }
-    result = doc;
-    auditAction = 'UNBAN';
-  } else {
-    return new Response(JSON.stringify({ error: 'bad-action' }), { status: 400, headers: JSON_HEADERS });
-  }
+    return { error: { status: 400, body: { error: 'bad-action' } } };
+  };
 
-  await store.set(MODERATION_BLOCKLIST_KEY, JSON.stringify(result));
+  const outcome = await withBlocklistRetry(store, apply);
+  if (outcome.error) return jsonError(outcome.error.status, outcome.error.body);
+  if (outcome.conflict) return jsonError(409, { error: 'conflict', retry: true, attempts: outcome.attempts });
+  const result = outcome.doc; // committed + verified by withBlocklistRetry
+  const auditAction = action === 'ban' ? 'BAN' : 'UNBAN';
+
   await writeAudit(store, {
     id: `${auditAction}-${now}-${Math.random().toString(36).slice(2, 10)}`,
     timestamp: now,
