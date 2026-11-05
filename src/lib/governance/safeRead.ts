@@ -63,8 +63,53 @@ export interface MulticallClient {
   }) => Promise<ReadonlyArray<{ status: "success" | "failure"; result?: unknown }>>;
 }
 
+/**
+ * Bounded RPC reads. Netlify's synchronous function budget is 30s, so a hung
+ * public RPC must fail closed well before that instead of returning a 504 to
+ * the dashboard. 6s per request with no retries keeps the whole read bounded.
+ */
+export const GOVERNANCE_RPC_TIMEOUT_MS = 6_000;
+
 export function publicGovernanceClient(rpcUrl = GOVERNANCE_SEPOLIA_RPC) {
-  return createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
+  return createPublicClient({
+    chain: sepolia,
+    transport: http(rpcUrl, {
+      timeout: GOVERNANCE_RPC_TIMEOUT_MS,
+      retryCount: 0,
+    }),
+  });
+}
+
+/**
+ * A fail-closed snapshot for the case where the read did not complete in the
+ * route's time budget. It carries the same shape as a real read so the panel
+ * renders "unreadable" and disables every governance action.
+ */
+export function unreadableSnapshot(
+  input: {
+    chainId: number;
+    safeAddress: string | null;
+    connectedAddress?: string | null;
+    requiredQuorum: number;
+  },
+  note: string,
+): GovernanceSnapshot {
+  return {
+    readOk: false,
+    safeConfigured: Boolean(input.safeAddress),
+    chainId: input.chainId,
+    safeAddress: input.safeAddress ? normalizeAddress(input.safeAddress) : null,
+    safeNonce: 0,
+    adminSet: deriveAdminSet({
+      owners: [],
+      threshold: 0,
+      connectedAddress: input.connectedAddress,
+      requiredQuorum: input.requiredQuorum,
+    }),
+    targets: [],
+    note,
+    fetchedAt: new Date().toISOString(),
+  };
 }
 
 function targetSnapshot(
