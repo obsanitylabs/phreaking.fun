@@ -16,6 +16,10 @@ const result = readFileSync(join(root, "src/components/boxFlows/ResultScreen.tsx
 const panel = readFileSync(join(root, "src/components/boxFlows/WhiteVerbatimPanel.tsx"), "utf8");
 const app = readFileSync(join(root, "src/components/boxFlows/BoxFlowApp.tsx"), "utf8");
 const flow = readFileSync(join(root, "src/components/boxFlows/flowState.ts"), "utf8");
+const finalityOverlay = readFileSync(
+  join(root, "src/components/boxFlows/FinalityOverlay.tsx"),
+  "utf8",
+);
 const prototype = readFileSync(
   join(root, "src/components/design/boxFlows/BoxFlowPrototype.tsx"),
   "utf8",
@@ -57,6 +61,9 @@ const SILVER_NOTE_NEW =
 const DEMO_WEIGHTS_LABEL = "DEMO WEIGHTS";
 const GOLD_DEMO_WEIGHTS = "F 5% · SYRUP 5% · GFI 5% · CPOOL 5%";
 const GOLD_BAD_WEIGHTS = "F 25% · SYRUP 25% · GFI 25% · CPOOL 25%";
+const FINALITY_PREVIEW_ONLY = "Preview only. No transaction was submitted.";
+const FINALITY_SIMULATED_TIMELINE =
+  "Simulated preview timeline — not observed chain progress.";
 
 assert.ok(catalog.includes(WHITE), "catalog missing White verbatim string");
 assert.ok(copy.includes(WHITE), "copy.ts missing White verbatim string");
@@ -66,10 +73,19 @@ assert.ok(copy.includes(RAINBOW_OUTCOMES));
 assert.ok(copy.includes(RAINBOW_SWEEP));
 assert.ok(catalog.includes(RAINBOW_SWEEP));
 assert.ok(copy.includes(RAINBOW_ACK));
+// Every user-visible render module the script reads. The negative fixture
+// src/components/boxFlows/obs346.test.ts intentionally keeps the banned
+// strings as test data and is not read here.
 for (const [file, text] of [
   ["catalog.ts", catalog],
   ["copy.ts", copy],
   ["HomeClient.tsx", home],
+  ["reviewModel.ts", review],
+  ["ResultScreen.tsx", result],
+  ["WhiteVerbatimPanel.tsx", panel],
+  ["BoxFlowApp.tsx", app],
+  ["flowState.ts", flow],
+  ["FinalityOverlay.tsx", finalityOverlay],
   ["BoxFlowPrototype.tsx", prototype],
 ]) {
   for (const phrase of FORBIDDEN) {
@@ -94,13 +110,117 @@ assert.equal(
   "catalog still ships the unconfirmed $1 dust-floor claim",
 );
 assert.ok(catalog.includes(GOLD_DEMO_WEIGHTS), "catalog missing the Gold 5% demo weights");
-assert.ok(prototype.includes(DEMO_WEIGHTS_LABEL), "BoxFlowPrototype.tsx missing DEMO WEIGHTS label");
-assert.ok(app.includes(DEMO_WEIGHTS_LABEL), "BoxFlowApp.tsx missing DEMO WEIGHTS label");
 assert.equal(
   prototype.includes(GOLD_BAD_WEIGHTS),
   false,
   "BoxFlowPrototype.tsx still ships the unconfirmed Gold 25% weights",
 );
+
+/**
+ * Finding 2 — pin DEMO WEIGHTS at the render sites, not the file.
+ * A file-level `includes` passes when the string sits anywhere in the file, so
+ * a card badge could lose its label while an unrelated node keeps the text.
+ * These helpers isolate the element that actually renders demo weights and
+ * assert the label lives inside it.
+ */
+function divSlicesContaining(source, needle) {
+  const slices = [];
+  let from = 0;
+  while (true) {
+    const at = source.indexOf(needle, from);
+    if (at === -1) break;
+    const open = source.lastIndexOf("<div", at);
+    if (open === -1) break;
+    let depth = 0;
+    let i = open;
+    let end = -1;
+    while (i < source.length) {
+      const nextOpen = source.indexOf("<div", i);
+      const nextClose = source.indexOf("</div>", i);
+      if (nextClose === -1) break;
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth += 1;
+        i = nextOpen + 4;
+      } else {
+        depth -= 1;
+        i = nextClose + 6;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    if (end === -1) break;
+    slices.push(source.slice(open, end));
+    from = end;
+  }
+  return slices;
+}
+
+function parenBlockContaining(source, marker) {
+  const at = source.indexOf(marker);
+  if (at === -1) return null;
+  const open = source.indexOf("(", at + marker.length);
+  if (open === -1) return null;
+  let depth = 0;
+  for (let i = open; i < source.length; i += 1) {
+    if (source[i] === "(") depth += 1;
+    else if (source[i] === ")") {
+      depth -= 1;
+      if (depth === 0) return source.slice(at, i + 1);
+    }
+  }
+  return source.slice(at);
+}
+
+for (const [file, text] of [
+  ["BoxFlowApp.tsx", app],
+  ["BoxFlowPrototype.tsx", prototype],
+]) {
+  const noteSites = divSlicesContaining(text, "Target basket weights");
+  assert.ok(noteSites.length >= 1, `${file} has no demo-weights note render site`);
+  for (const [index, site] of noteSites.entries()) {
+    assert.ok(
+      site.includes(DEMO_WEIGHTS_LABEL),
+      `${file} demo-weights note #${index + 1} missing DEMO WEIGHTS label`,
+    );
+  }
+
+  const badge = parenBlockContaining(text, "box.mirrorWeightsAreDemo && (");
+  assert.ok(badge, `${file} missing the demo-weights card badge`);
+  assert.ok(
+    badge.includes(DEMO_WEIGHTS_LABEL),
+    `${file} demo-weights card badge missing DEMO WEIGHTS label`,
+  );
+}
+
+// Finding 3 — every finality rendering must characterise the stage list as a
+// simulated preview and keep the "Preview only." disclaimer in view.
+assert.ok(copy.includes(FINALITY_PREVIEW_ONLY), "copy.ts missing the finality preview-only disclaimer");
+assert.ok(
+  copy.includes(FINALITY_SIMULATED_TIMELINE),
+  "copy.ts missing the simulated timeline label",
+);
+for (const [file, text] of [
+  ["FinalityOverlay.tsx", finalityOverlay],
+  ["BoxFlowApp.tsx", app],
+  ["BoxFlowPrototype.tsx", prototype],
+]) {
+  assert.ok(
+    text.includes("FINALITY_PREVIEW_ONLY"),
+    `${file} finality rendering omits the preview-only disclaimer`,
+  );
+}
+for (const [file, text] of [
+  ["FinalityOverlay.tsx", finalityOverlay],
+  ["BoxFlowPrototype.tsx", prototype],
+]) {
+  assert.ok(
+    text.includes("FINALITY_SIMULATED_TIMELINE"),
+    `${file} finality rendering omits the simulated timeline label`,
+  );
+}
+
 function boxBlock(id) {
   const start = catalog.indexOf(`id: "${id}"`);
   const next = catalog.indexOf('id: "', start + 1);

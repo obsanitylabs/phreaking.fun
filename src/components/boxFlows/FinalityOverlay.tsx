@@ -1,6 +1,11 @@
 "use client";
 
-import { FINALITY_KEEP_OPEN, TAKING_LONGER } from "./copy";
+import {
+  FINALITY_KEEP_OPEN,
+  FINALITY_PREVIEW_ONLY,
+  FINALITY_SIMULATED_TIMELINE,
+  TAKING_LONGER,
+} from "./copy";
 
 export function FinalityOverlay({
   boxName,
@@ -43,11 +48,14 @@ export function FinalityOverlay({
       <p className="mt-1 text-[11px] text-white/40">
         {boxName} · elapsed {mm}:{ss}
       </p>
+      <p className="mt-4 text-[10px] uppercase tracking-widest text-terminal-orange">
+        {FINALITY_SIMULATED_TIMELINE}
+      </p>
       <ol
         data-testid="finality-stages"
-        className="mt-5 space-y-2"
+        className="mt-2 space-y-2"
         aria-live="polite"
-        aria-label="Transaction stages"
+        aria-label="Simulated preview stages"
       >
         {stages.map((stage, index) => {
           const done = index < stageIndex;
@@ -67,6 +75,12 @@ export function FinalityOverlay({
           );
         })}
       </ol>
+      <p
+        className="mt-3 text-[10px] uppercase tracking-widest text-white/40"
+        data-testid="finality-preview-only"
+      >
+        {FINALITY_PREVIEW_ONLY}
+      </p>
       <p className="mt-5 border-l-2 border-terminal-orange pl-3 text-[11px] text-white/60">
         {FINALITY_KEEP_OPEN}
       </p>
@@ -81,9 +95,6 @@ export function FinalityOverlay({
           </a>
         </p>
       )}
-      <p className="mt-3 text-[10px] uppercase tracking-widest text-white/30">
-        Preview only. No transaction was submitted.
-      </p>
     </div>
   );
 }
