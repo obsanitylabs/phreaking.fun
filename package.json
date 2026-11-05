@@ -11,7 +11,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "test:box-copy": "node scripts/verify-box-copy.mjs"
+    "test:box-copy": "node scripts/verify-box-copy.mjs",
+    "test:governance": "node --test src/lib/governance/governance.test.mjs",
+    "verify:governance": "node scripts/verify-governance.mjs",
+    "test:moderation": "node --test netlify/shared/moderation.test.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^11.1.7",
