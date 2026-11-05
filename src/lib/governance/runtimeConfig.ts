@@ -12,6 +12,7 @@
  */
 
 import fs from "node:fs";
+import { getStore as getNetlifyStore } from "@netlify/blobs";
 import {
   parseGovernanceConfig,
   SEPOLIA_CHAIN_ID,
@@ -43,17 +44,11 @@ async function readFromRuntimeStore(): Promise<RawGovernanceConfig | null> {
   const context = process.env.NETLIFY_BLOBS_CONTEXT;
   if (context) {
     try {
-      const specifier = "@netlify/blobs";
-      const mod = (await import(/* webpackIgnore: true */ specifier)) as unknown as {
-        getStore: (name: string) => {
-          get: (key: string) => Promise<string | null>;
-        };
-      };
-      // Netlify's runtime resolves the Blobs context from the environment; do
-      // not pass the raw NETLIFY_BLOBS_CONTEXT string as an option (it is not a
-      // valid ClientOptions field and the read hangs instead of failing fast).
-      const store = mod.getStore(GOVERNANCE_STORE_NAME);
-      const text = await store.get(GOVERNANCE_STORE_KEY);
+      // Static import keeps the module in the Netlify Next.js server bundle;
+      // the runtime resolves the Blobs context from the environment. Do not
+      // pass the raw NETLIFY_BLOBS_CONTEXT string as a `context` option.
+      const store = getNetlifyStore(GOVERNANCE_STORE_NAME);
+      const text = await store.get(GOVERNANCE_STORE_KEY, { type: "text" });
       if (text) return JSON.parse(text) as RawGovernanceConfig;
     } catch {
       // fall through to the local shim

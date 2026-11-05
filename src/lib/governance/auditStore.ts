@@ -13,6 +13,7 @@
  */
 
 import fs from "node:fs";
+import { getStore as getNetlifyStore } from "@netlify/blobs";
 import type { GovernanceAuditRecord } from "./model";
 
 export const AUDIT_STORE_NAME = "admin_governance_audit";
@@ -34,13 +35,9 @@ async function getBlobsStore(): Promise<BlobsStore | null> {
   const context = process.env.NETLIFY_BLOBS_CONTEXT;
   if (!context) return null;
   try {
-    const specifier = "@netlify/blobs";
-    const mod = (await import(/* webpackIgnore: true */ specifier)) as unknown as {
-      getStore: (name: string) => BlobsStore;
-    };
-    // Netlify's runtime resolves the Blobs context from the environment; do
-    // not pass the raw NETLIFY_BLOBS_CONTEXT string as an option.
-    return mod.getStore(AUDIT_STORE_NAME);
+    // Static import keeps the module in the Netlify Next.js server bundle;
+    // the runtime resolves the Blobs context from the environment.
+    return getNetlifyStore(AUDIT_STORE_NAME) as unknown as BlobsStore;
   } catch {
     return null;
   }
